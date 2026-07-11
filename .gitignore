@@ -4,3 +4,6 @@ Bin
 *.log
 Source/.vs
 Source/UnrealED/obj
+Source/build/
+Unreal205Demo/
+.DS_Store
