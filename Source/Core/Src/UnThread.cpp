@@ -43,7 +43,13 @@ CORE_API UTHREAD appThreadSpawn( THREAD_FUNC Func, void* Arg, const char* Name, 
 	}
 	else
 	{
+#if defined(__APPLE__)
+		// macOS: pthread_setname_np only sets the calling thread's name, so
+		// skip it here (would need to invoke from inside the thread trampoline).
+		(void)Name;
+#else
 		pthread_setname_np( *Thread, Name );
+#endif
 		if( OutThreadId )
 			*OutThreadId = ++ThreadId;
 	}

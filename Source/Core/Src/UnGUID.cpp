@@ -42,14 +42,14 @@ typedef unsigned char   byte;
 #define CLOCK_SEQ_LAST	0x3FFF
 #define RAND_MASK		CLOCK_SEQ_LAST
 
-typedef struct _uuid_t {
+typedef struct _unreal_uuid_t {
   unsigned32          time_low;
   unsigned16          time_mid;
   unsigned16          time_hi_and_version;
   unsigned8           clock_seq_hi_and_reserved;
   unsigned8           clock_seq_low;
   byte                node[6];
-} uuid_t;
+} unreal_uuid_t;
 
 typedef struct _unsigned64_t {
   unsigned32          lo;
@@ -57,7 +57,7 @@ typedef struct _unsigned64_t {
 } unsigned64_t;
 
 // Forward declarations.
-void uuid_create(uuid_t *uuid);
+void uuid_create(unreal_uuid_t *uuid);
 static unsigned16 true_random(void);
 void uuid_init(void);
 
@@ -79,7 +79,7 @@ void appGetGUID( void* GUID )
 		uuid_init();
 		Init = 1;
 	}
-	uuid_create( (uuid_t*)GUID );
+	uuid_create( (unreal_uuid_t*)GUID );
 }
 	
 /*----------------------------------------------------------------------------
@@ -189,7 +189,7 @@ mult32(unsigned32 u, unsigned32 v, unsigned64_t *result)
 }
 
 static void
-get_system_time(unsigned64_t *uuid_time)
+get_system_time(unsigned64_t *unreal_uuid_time)
 {
   struct timeval tp;
   unsigned64_t utc, usecs, os_basetime_diff;
@@ -203,7 +203,7 @@ get_system_time(unsigned64_t *uuid_time)
    * Unix base time is January 1, 1970. */
   os_basetime_diff.lo = 0x13814000;
   os_basetime_diff.hi = 0x01B21DD2;
-  ADD_64b_2_64b(&utc, &os_basetime_diff, uuid_time);
+  ADD_64b_2_64b(&utc, &os_basetime_diff, unreal_uuid_time);
 }
 
 /*
@@ -290,7 +290,7 @@ static void new_clock_seq(void)
 #endif
 }
 
-void uuid_create(uuid_t *uuid)
+void uuid_create(unreal_uuid_t *uuid)
 {
   static unsigned64_t     time_now;
   static unsigned16       time_adjust;

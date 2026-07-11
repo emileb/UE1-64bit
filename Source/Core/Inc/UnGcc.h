@@ -184,7 +184,11 @@ char* appUnixPath( const char* Path );
 #else
 #define LINE_TERMINATOR "\n"
 #define PATH_SEPARATOR "/"
+#if defined(__APPLE__)
+#define DLLEXT ".dylib"
+#else
 #define DLLEXT ".so"
+#endif
 #endif
 
 // Package implementation.
