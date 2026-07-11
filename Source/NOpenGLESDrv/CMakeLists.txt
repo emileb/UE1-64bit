@@ -4,7 +4,9 @@ if(NOT USE_SDL)
   message(FATAL_ERROR "NOpenGLESDrv requires NSDLDrv to function.")
 endif()
 
-set(SRC_FILES "NOpenGLESDrv.cpp" "${CMAKE_SOURCE_DIR}/../Thirdparty/glad_es/glad.c")
+# UE1_SOURCE_DIR (from project(UE1)) instead of CMAKE_SOURCE_DIR so paths stay
+# correct when built via add_subdirectory from a parent project (Android).
+set(SRC_FILES "NOpenGLESDrv.cpp" "${UE1_SOURCE_DIR}/../Thirdparty/glad_es/glad.c")
 
 add_library(${PROJECT_NAME} ${LIB_TYPE} ${SRC_FILES})
 
@@ -12,8 +14,8 @@ target_include_directories(${PROJECT_NAME}
   PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/Inc
   PRIVATE
-  ${CMAKE_SOURCE_DIR}/../Thirdparty/glad_es
-  ${CMAKE_SOURCE_DIR}/../Thirdparty
+  ${UE1_SOURCE_DIR}/../Thirdparty/glad_es
+  ${UE1_SOURCE_DIR}/../Thirdparty
   ${SDL2_INCLUDE_DIR}
 )
 

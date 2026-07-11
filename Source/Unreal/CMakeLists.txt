@@ -16,6 +16,9 @@ endif()
 if(TARGET_IS_WINDOWS)
   list(APPEND SRC_FILES "Src/Res/LaunchRes.rc")
   add_executable(${PROJECT_NAME} WIN32 ${SRC_FILES})
+elseif(ANDROID)
+  # The app loads the game as a shared library and calls main() via the JNI glue.
+  add_library(${PROJECT_NAME} SHARED ${SRC_FILES})
 else()
   add_executable(${PROJECT_NAME} ${SRC_FILES})
 endif()
@@ -28,7 +31,13 @@ target_include_directories(${PROJECT_NAME}
 )
 
 if(USE_SDL)
-  target_link_libraries(${PROJECT_NAME} ${SDL2_LIBRARY} NSDLDrv)
+  if(ANDROID)
+    # NSDLDrv is pulled in whole-archive by the static link below; naming it
+    # here as well makes lld see every symbol twice.
+    target_link_libraries(${PROJECT_NAME} ${SDL2_LIBRARY})
+  else()
+    target_link_libraries(${PROJECT_NAME} ${SDL2_LIBRARY} NSDLDrv)
+  endif()
   target_include_directories(${PROJECT_NAME} PRIVATE ${SDL2_INCLUDE_DIR})
 elseif(TARGET_IS_WINDOWS)
   target_link_libraries(${PROJECT_NAME} Window)
@@ -42,6 +51,34 @@ if(BUILD_STATIC)
   target_link_libraries(${PROJECT_NAME} -Wl,--whole-archive ${LINK_PACKAGES} -Wl,--no-whole-archive)
 else()
   target_link_libraries(${PROJECT_NAME} Engine Core)
+endif()
+
+if(ANDROID)
+  # Package as libunreal.so (the parent scope clears the "lib" prefix).
+  set_target_properties(${PROJECT_NAME} PROPERTIES PREFIX "lib" OUTPUT_NAME "unreal")
+
+  # ENGINE_NAME names the touch-control layout XML files.
+  target_compile_definitions(${PROJECT_NAME} PRIVATE ENGINE_NAME="unreal")
+
+  # OpenTouch glue: JNI bridge + touch interface from Clibs_OpenTouch, compiled
+  # into the engine .so. Phase 1 uses the shared alpha/ TouchInterface; the
+  # engine gets its own mobile/touch_interface copy in Phase 2.
+  target_include_directories(${PROJECT_NAME} PRIVATE
+    ${SDL2_IMAGE_ANDROID_INCLUDE_DIR}
+    ${CLIBS_DIR}
+    ${CLIBS_DIR}/alpha
+    ${TOUCH_CONTROLS_DIR}
+  )
+  target_sources(${PROJECT_NAME} PRIVATE
+    "${UE1_SOURCE_DIR}/../mobile/game_interface.cpp"
+    "${CLIBS_DIR}/sigma/android_jni.cpp"
+    "${CLIBS_DIR}/alpha/touch_interface.cpp"
+    "${CLIBS_DIR}/touch_interface_base.cpp"
+    "${CLIBS_DIR}/LogWritter.c"
+    "${CLIBS_DIR}/fts.c"
+    "${CLIBS_DIR}/rand.c"
+  )
+  target_link_libraries(${PROJECT_NAME} SDL2_image touchcontrols saffal log)
 endif()
 
 if(VITA)

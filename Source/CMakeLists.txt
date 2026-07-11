@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.15)
-list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
+# CMAKE_CURRENT_SOURCE_DIR (not CMAKE_SOURCE_DIR) so this also works when built
+# via add_subdirectory from a parent project (the Android app build).
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
 project(UE1 CXX)
 
@@ -27,6 +29,15 @@ option(BUILD_STATIC "Link everything into a single binary" OFF)
 
 if(VITA)
   set(BUILD_STATIC ON)
+endif()
+
+if(ANDROID)
+  # Single libunreal.so with all packages linked in statically. Plain set()
+  # (not cache) so these shadow any previously cached option() values.
+  set(BUILD_STATIC ON)
+  set(BUILD_EDITOR OFF)
+  # Phase 1 uses the null sound driver; OpenAL + libxmp come later.
+  set(BUILD_NOPENALDRV OFF)
 endif()
 
 if(BUILD_STATIC)

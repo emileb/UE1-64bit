@@ -1579,9 +1579,15 @@ CORE_API const char* appBaseDir()
 		if ( getcwd( BaseDir, sizeof(BaseDir) ) )
 			appStrncat( BaseDir, "/", sizeof(BaseDir) - 1 );
 #elif defined(PLATFORM_SDL)
+#ifdef __ANDROID__
+        char* BasePath = "./";
+        appStrncpy( BaseDir, BasePath, sizeof(BaseDir) );
+#else
 		char* BasePath = SDL_GetBasePath();
-		appStrncpy( BaseDir, BasePath, sizeof(BaseDir) );
+        appStrncpy( BaseDir, BasePath, sizeof(BaseDir) );
 		SDL_free( BasePath );
+#endif
+
 #endif
 		// Fallback to CWD.
 		if ( !BaseDir[0] )
