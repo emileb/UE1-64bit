@@ -45,7 +45,30 @@ struct FNameEntry
 	friend FArchive& operator<<( FArchive& Ar, FNameEntry& E )
 	{
 		guard(FNameEntry<<);
-		Ar.String( E.Name, NAME_SIZE );
+		if( Ar.IsLoading() && Ar.Ver()>=64 )
+		{
+			// 224+-era packages store the name as a length-prefixed string;
+			// the compact-index length includes the terminating null.
+			BYTE B=0;
+			Ar << B;
+			INT Len = B & 0x3f;
+			if( B & 0x40 )
+			{
+				INT Shift = 6;
+				do
+				{
+					Ar << B;
+					Len |= (INT)(B & 0x7f) << Shift;
+					Shift += 7;
+				} while( (B & 0x80) && Shift < 27 );
+			}
+			if( Len<=0 || Len>NAME_SIZE )
+				appThrowf( "Bad name length %i", Len );
+			Ar.Serialize( E.Name, Len );
+			E.Name[Len-1] = 0;
+		}
+		else
+			Ar.String( E.Name, NAME_SIZE );
 		return Ar << E.Flags;
 		unguard;
 	}

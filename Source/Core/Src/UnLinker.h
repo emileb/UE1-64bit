@@ -316,6 +316,8 @@ struct FPackageFileSummary
 	INT		ExportCount,	ExportOffset;
 	INT     ImportCount,	ImportOffset;
 	INT		HeritageCount,	HeritageOffset;
+	FGuid	Guid;				// Package guid (file version >= 68).
+	INT		GenerationCount;	// Generation history size (file version >= 68).
 
 	// Constructor.
 	FPackageFileSummary()
@@ -337,7 +339,26 @@ struct FPackageFileSummary
 		Ar << Sum.NameCount     << Sum.NameOffset;
 		Ar << Sum.ExportCount   << Sum.ExportOffset;
 		Ar << Sum.ImportCount   << Sum.ImportOffset;
-		Ar << Sum.HeritageCount << Sum.HeritageOffset;
+		if( (Sum.FileVersion & 0xffff) < 68 )
+		{
+			Ar << Sum.HeritageCount << Sum.HeritageOffset;
+		}
+		else
+		{
+			// 225/226-era packages: the heritage table was replaced by a
+			// package guid plus a generation history.
+			Ar << Sum.Guid << Sum.GenerationCount;
+			for( INT i=0; i<Sum.GenerationCount; i++ )
+			{
+				INT GenExportCount=0, GenNameCount=0;
+				Ar << GenExportCount << GenNameCount;
+			}
+			if( Ar.IsLoading() )
+			{
+				Sum.HeritageCount  = 0;
+				Sum.HeritageOffset = 0;
+			}
+		}
 
 		return Ar;
 		unguard;
@@ -497,6 +518,12 @@ class ULinkerLoad : public ULinker, public FArchiveFileLoad
 			Seek( Summary.HeritageOffset );
 			for( INT i=0; i<Summary.HeritageCount; i++ )
 				*this << Heritage( i );
+		}
+		else if( (Summary.FileVersion & 0xffff) >= 68 )
+		{
+			// 225/226-era packages have no heritage table; treat the package
+			// guid as its own heritage.
+			Heritage.AddItem( Summary.Guid );
 		}
 		unguard;
 
