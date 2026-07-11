@@ -120,13 +120,15 @@ enum {CACHE_LINE_SIZE   = 32}; // Cache line size.
 #define GCC_USED __attribute__((used))
 
 // Unsigned base types.
-typedef uint16_t _WORD;  // 16-bit signed.
-typedef uint64_t QWORD;  // 64-bit unsigned.
+typedef uint16_t  _WORD;   // 16-bit unsigned.
+typedef uint64_t  QWORD;   // 64-bit unsigned.
+typedef uintptr_t UPTRINT; // Pointer-sized unsigned int (32-bit on 32-bit, 64-bit on 64-bit).
 
 // Signed base types.
 typedef char     CHAR;   // 8-bit  signed.
 typedef int16_t  SWORD;  // 16-bit signed.
 typedef int64_t  SQWORD; // 64-bit signed.
+typedef intptr_t PTRINT; // Pointer-sized signed int.
 
 // Other base types.
 typedef int32_t  UBOOL;  // Boolean 0 (false) or 1 (true).

@@ -731,7 +731,7 @@ public:
 	FArchive& operator<<( class FName& N )
 		{NAME_INDEX W=N.GetIndex(); return *this << W;}
 	FArchive& operator<<( class UObject*& Res )
-		{DWORD D = (DWORD)Res; return *this << D;}
+		{INT I = Res ? (INT)Res->GetIndex() : INDEX_NONE; return *this << I;}
 	FArchive& operator<<( char* S )
 		{return Serialize(S,appStrlen(S)+1);}
 	FArchive& operator<<( enum EExprToken E )

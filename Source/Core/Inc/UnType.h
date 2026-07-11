@@ -300,7 +300,10 @@ class CORE_API UObjectProperty : public UProperty
 	}
 	void Link( FArchive& Ar, UProperty* Prev )
 	{
-		Offset = Align( GetParentStruct()->PropertiesSize, sizeof(UObject*) );
+		// Native class mirrors are compiled with #pragma pack(4)
+		// (CoreClasses.h/EngineClasses.h), so pointers stay 4-aligned even
+		// when they are 8 bytes wide.
+		Offset = Align( GetParentStruct()->PropertiesSize, 4 );
 	}
 	UBOOL Identical( const void* A, const void* B ) const
 	{
@@ -578,7 +581,7 @@ inline UBOOL UStruct::StructCompare( const void* A, const void* B )
 -----------------------------------------------------------------------------*/
 
 #define CPP_PROPERTY(name) \
-	EC_CppProperty, (BYTE*)&((ThisClass*)NULL)->name - (BYTE*)NULL
+	EC_CppProperty, (INT)(UPTRINT)&((ThisClass*)NULL)->name
 
 /*-----------------------------------------------------------------------------
 	The End.

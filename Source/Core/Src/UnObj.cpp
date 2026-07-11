@@ -1042,9 +1042,10 @@ void FObjectManager::PreRegister( UObject* InObject, FName InPackageName )
 	}
 	else
 	{
-		// Add to the autoregistry chain.
-		InObject->LinkerIndex = (INT)AutoRegister;
-		*(FName*)&InObject->Linker = InPackageName;
+		// Add to the autoregistry chain.  Linker (pointer-sized) holds the next
+		// UObject* in the chain; LinkerIndex (32-bit) holds the package FName index.
+		InObject->Linker = (ULinkerLoad*)AutoRegister;
+		*(FName*)&InObject->LinkerIndex = InPackageName;
 		AutoRegister = InObject;
 	}
 }
@@ -1129,8 +1130,8 @@ void FObjectManager::Init()
 	UObject* Next;
 	for( UObject* Object=AutoRegister; Object!=NULL; Object=Next )
 	{
-		Next = (UObject*)Object->LinkerIndex;
-		Register( Object, *(FName*)&Object->Linker );
+		Next = (UObject*)Object->Linker;
+		Register( Object, *(FName*)&Object->LinkerIndex );
 		Object->Linker      = NULL;
 		Object->LinkerIndex = INDEX_NONE;
 		if( Object->GetClass()==UClass::StaticClass )
@@ -2513,6 +2514,7 @@ UObject* FObjectManager::AllocateObject
 	INT ClassSize = 0;
 	void (*Constructor)(void*) = NULL;
 	DWORD ClassFlags = 0;
+	INT IntrinsicSize = 0;
 	if( !Obj )
 	{
 		// Create a new object.
@@ -2529,8 +2531,9 @@ UObject* FObjectManager::AllocateObject
 		InFlags |= (Obj->GetFlags() & RF_Keep);
 		if( Obj->IsA( UClass::StaticClass ) )
 		{
-			Constructor = ((UClass*)Obj)->Constructor;
-			ClassFlags  = ((UClass*)Obj)->ClassFlags & CLASS_Abstract;
+			Constructor   = ((UClass*)Obj)->Constructor;
+			ClassFlags    = ((UClass*)Obj)->ClassFlags & CLASS_Abstract;
+			IntrinsicSize = ((UClass*)Obj)->IntrinsicSize;
 		}
 		Index = Obj->Index;
 		Obj->~UObject();
@@ -2573,8 +2576,9 @@ UObject* FObjectManager::AllocateObject
 	// Restore class information.
 	if( Obj->IsA( UClass::StaticClass ) )
 	{
-		((UClass*)Obj)->Constructor  = Constructor;
-		((UClass*)Obj)->ClassFlags  |= ClassFlags;
+		((UClass*)Obj)->Constructor    = Constructor;
+		((UClass*)Obj)->ClassFlags    |= ClassFlags;
+		((UClass*)Obj)->IntrinsicSize  = IntrinsicSize;
 	}
 
 	// Success.

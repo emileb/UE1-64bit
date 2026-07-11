@@ -1,3 +1,4 @@
+#pragma pack (push,4) /* Match script class mirror layout */
 /*=============================================================================
 	UnCon.h: UConsole game-specific definition
 	Copyright 1997 Epic MegaGames, Inc. This software is a trade secret.
@@ -108,3 +109,5 @@ private:
 /*------------------------------------------------------------------------------
 	The End.
 ------------------------------------------------------------------------------*/
+
+#pragma pack (pop)

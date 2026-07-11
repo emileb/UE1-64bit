@@ -198,6 +198,15 @@ BYTE CORE_API GRegisterIntrinsic( int iIntrinsic, void* Func );
 //
 // Macros for grabbing parameters for intrinsic functions.
 //
+// Design note (64-bit): Stack.Step() sets the BYTE*& Result to point into the
+// script locals buffer at the parameter's offset.  The type pun *(BYTE**)&Ptr
+// is valid because both BYTE* and the typed pointer Ptr are the same native
+// pointer size.  After Step(), *Ptr reads sizeof(*Ptr) bytes from the locals
+// buffer, which is exactly the size that UProperty::GetElementSize() allocated.
+// For object/actor references this is sizeof(UObject*) = 8 on 64-bit, so the
+// exec functions (execSelf, execObjectConst, etc.) write a full native UObject*
+// into that slot and the read here is consistent.
+//
 #define P_GET_INT(var)              INT           var;   {INT *Ptr=&var;       Stack.Step( Stack.Object, *(BYTE**)&Ptr ); var=*Ptr;}
 #define P_GET_INT_OPT(var,def)      INT       var=def;   {INT *Ptr=&var;       Stack.Step( Stack.Object, *(BYTE**)&Ptr ); var=*Ptr;}
 #define P_GET_INT_REF(var)          INT   a##var=0,*var=&a##var;              {Stack.Step( Stack.Object, *(BYTE**)&var );          }

@@ -202,7 +202,7 @@ void UObject::execLocalVariable( FFrame& Stack, BYTE*& Result )
 
 	debug(Stack.Object==this);
 	debug(Stack.Locals!=NULL);
-	GProperty = ((UProperty*)Stack.ReadInt());
+	GProperty = (UProperty*)GObj.GetIndexedObject( Stack.ReadInt() );
 	Result = Stack.Locals + GProperty->Offset;
 
 	unguardexecSlow;
@@ -213,7 +213,7 @@ void UObject::execInstanceVariable( FFrame& Stack, BYTE*& Result )
 {
 	guardSlow(UObject::execInstanceVariable);
 
-	GProperty = (UProperty*)Stack.ReadInt();
+	GProperty = (UProperty*)GObj.GetIndexedObject( Stack.ReadInt() );
 	Result = (BYTE*)this + GProperty->Offset;
 
 	unguardexecSlow;
@@ -224,7 +224,7 @@ void UObject::execDefaultVariable( FFrame& Stack, BYTE*& Result )
 {
 	guardSlow(UObject::execDefaultVariable);
 
-	GProperty = (UProperty*)Stack.ReadInt();
+	GProperty = (UProperty*)GObj.GetIndexedObject( Stack.ReadInt() );
 	Result = &GetClass()->Defaults(GProperty->Offset);
 
 	unguardexecSlow;
@@ -292,10 +292,11 @@ void UObject::execBoolVariable( FFrame& Stack, BYTE*& Result )
 {
 	guardSlow(UObject::execBoolVariable);
 
-	// Get bool variable.
+	// Get bool variable.  The following variable opcode's operand is a 4-byte
+	// GObjects index (see XFER_OBJ in UStruct::SerializeExpr), not a pointer.
 	GBoolAddr = NULL;
 	BYTE B = *Stack.Code++;
-	UBoolProperty* Property = *(UBoolProperty**)Stack.Code;
+	UBoolProperty* Property = (UBoolProperty*)GObj.GetIndexedObject( *(INT*)Stack.Code );
 	(this->*GIntrinsics[B])( Stack, *(BYTE**)&GBoolAddr );
 	GProperty = Property;
 
@@ -330,7 +331,7 @@ AUTOREGISTER_INTRINSIC( UObject, EX_Nothing, execNothing );
 
 void UObject::execIntrinsicParm( FFrame& Stack, BYTE*& Result )
 {
-	Result = Stack.Locals + ((UProperty*)Stack.ReadInt())->Offset;
+	Result = Stack.Locals + ((UProperty*)GObj.GetIndexedObject( Stack.ReadInt() ))->Offset;
 }
 AUTOREGISTER_INTRINSIC( UObject, EX_IntrinsicParm, execIntrinsicParm );
 
@@ -558,7 +559,7 @@ void UObject::execFinalFunction( FFrame& Stack, BYTE*& Result )
 	guardSlow(UObject::execFinalFunction);
 
 	// Call the final function.
-	CallFunction( Stack, Result, (UFunction*)Stack.ReadInt() );
+	CallFunction( Stack, Result, (UFunction*)GObj.GetIndexedObject( Stack.ReadInt() ) );
 
 	unguardexecSlow;
 }
@@ -583,9 +584,8 @@ void UObject::execStructCmpEq( FFrame& Stack, BYTE*& Result )
 {
 	guardSlow(UObject::execStructCmpEq);
 
-	// Get struct.
-	UStruct* Struct = *(UStruct**)Stack.Code;
-	Stack.Code += sizeof(UStruct*);
+	// Get struct (stored as 4-byte GObjects index in bytecode).
+	UStruct* Struct = (UStruct*)GObj.GetIndexedObject( Stack.ReadInt() );
 
 	// Get first expression.
 	BYTE Buffer1[255], *Addr1=Buffer1;
@@ -606,9 +606,8 @@ void UObject::execStructCmpNe( FFrame& Stack, BYTE*& Result )
 {
 	guardSlow(UObject::execStructCmpNe);
 
-	// Get struct.
-	UStruct* Struct = *(UStruct**)Stack.Code;
-	Stack.Code += sizeof(UStruct*);
+	// Get struct (stored as 4-byte GObjects index in bytecode).
+	UStruct* Struct = (UStruct*)GObj.GetIndexedObject( Stack.ReadInt() );
 
 	// Get first expression.
 	BYTE Buffer1[MAX_STRING_CONST_SIZE], *Addr1=Buffer1;
@@ -629,8 +628,8 @@ void UObject::execStructMember( FFrame& Stack, BYTE*& Result )
 {
 	guardSlow(UObject::execStructMember);
 
-	// Get structure element.
-	UProperty* Property = (UProperty*)Stack.ReadInt();
+	// Get structure element (stored as 4-byte GObjects index in bytecode).
+	UProperty* Property = (UProperty*)GObj.GetIndexedObject( Stack.ReadInt() );
 
 	// Get struct expression.
 	BYTE Buffer[255], *Addr = Result ? Buffer : NULL;
@@ -677,7 +676,7 @@ AUTOREGISTER_INTRINSIC( UObject, EX_StringConst, execStringConst );
 void UObject::execObjectConst( FFrame& Stack, BYTE*& Result )
 {
 	guardSlow(UObject::execObjectConst);
-	*(UObject**)Result = (UObject*)Stack.ReadInt();
+	*(UObject**)Result = GObj.GetIndexedObject( Stack.ReadInt() );
 	unguardexecSlow;
 }
 AUTOREGISTER_INTRINSIC( UObject, EX_ObjectConst, execObjectConst );
@@ -772,8 +771,8 @@ void UObject::execDynamicCast( FFrame& Stack, BYTE*& Result )
 {
 	guardSlow(UObject::execDynamicCast);
 
-	// Get destination class of dynamic actor class.
-	UClass* Class = (UClass *)Stack.ReadInt();
+	// Get destination class (stored as 4-byte GObjects index in bytecode).
+	UClass* Class = (UClass*)GObj.GetIndexedObject( Stack.ReadInt() );
 
 	// Compile actor expression.
 	BYTE Buffer[MAX_CONST_SIZE], *Addr=Buffer;
@@ -790,8 +789,8 @@ void UObject::execMetaCast( FFrame& Stack, BYTE*& Result )
 {
 	guardSlow(UObject::execMetaCast);
 
-	// Get destination class of dynamic actor class.
-	UClass* MetaClass = (UClass*)Stack.ReadInt();
+	// Get destination class (stored as 4-byte GObjects index in bytecode).
+	UClass* MetaClass = (UClass*)GObj.GetIndexedObject( Stack.ReadInt() );
 
 	// Compile actor expression.
 	BYTE Buffer[MAX_CONST_SIZE], *Addr=Buffer;
@@ -2788,17 +2787,25 @@ void UObject::CallFunction( FFrame& Stack, BYTE*& Result, UFunction* Function )
 		FFrame NewStack( this, Function, 0, NewZeroed<BYTE>(GMem,Function->GetPropertiesSize()) );
 		debug(*NewStack.Code==EX_BeginFunction);
 		NewStack.Code++;
-		BYTE* Dest = NewStack.Locals;
+		// The parameter sizes stored in the EX_BeginFunction size list were
+		// baked by the 32-bit script compiler, so on 64-bit machines they are
+		// stale (object references grew to 8 bytes).  Consume the list to stay
+		// in sync with the bytecode, but take each parameter's true size and
+		// offset from its property, as relinked by LinkOffsets at load time.
+		UField* ParmField = Function->Children;
 		FOutParmRec Outs[MAX_FUNC_PARMS], *Out = Outs;
-		while( (Out->Size = *NewStack.Code++) != 0 )
+		while( *NewStack.Code++ != 0 )
 		{
 			debug(*NewStack.Code==0 || *NewStack.Code==1);
+			UProperty* Parm = (UProperty*)ParmField;
+			ParmField = ParmField->Next;
+			BYTE* Dest = NewStack.Locals + Parm->Offset;
+			Out->Size = Parm->GetSize();
 			Out->Src = Out->Dest = Dest;
 			Stack.Step( Stack.Object, Out->Dest );
 			if( Out->Dest != Dest )
 				appMemcpy( Dest, Out->Dest, Out->Size );
-			Dest += Out->Size;
-			Out  += *NewStack.Code++;
+			Out += *NewStack.Code++;
 		}
 		debug(*Stack.Code==EX_EndFunctionParms);
 		Stack.Code++;

@@ -313,15 +313,72 @@ UStruct::UStruct( EIntrinsicConstructor, INT InSize, FName InName, FName InPacka
 ,	ScriptText( NULL )
 ,	Children( NULL )
 ,	PropertiesSize( InSize )
+,	IntrinsicSize( InSize )
 ,	FriendlyName( InName )
 ,	TextPos( 0 )
 ,	Line( 0 )
 {}
+// Note: IntrinsicSize is intentionally not initialized here.  Like
+// UClass::Constructor, it is preserved across in-place reconstruction when a
+// package export replaces a registered intrinsic class (see
+// FObjectManager::AllocateObject); fresh objects are zero-initialized by
+// InitProperties before this constructor runs.
 UStruct::UStruct( UStruct* InSuperStruct )
 :	UField( InSuperStruct )
 ,	PropertiesSize( InSuperStruct ? InSuperStruct->GetPropertiesSize() : 0 )
 ,	FriendlyName( GetFName() )
 {}
+
+//
+// Script mirrors of native classes declare hidden native members as 32-bit
+// ints or dummy structs (e.g. Object.uc's "int ObjectInternal[6]", Player.uc's
+// "vfOut" vtable placeholder, or TArray/FString mirrors).  On 64-bit machines
+// those members really occupy pointer-sized storage in the C++ class, so the
+// layout of everything that follows would diverge from the C++ layout unless
+// the placeholders are widened.  Returns the true byte size, or 0 if the
+// property is not a placeholder.
+//
+enum {MIRROR_PTR=-1, MIRROR_ARRAY=-2}; // Placeholder kinds resolved to sizes below.
+static INT GetPlaceholderSize( UStruct* Owner, UProperty* Property )
+{
+	static const struct { const char* Struct; const char* Prop; INT Size; } Placeholders[] =
+	{
+		{ "Object",       "ObjectInternal",    MIRROR_PTR   }, // Index/HashNext/MainFrame/Linker/LinkerIndex + vtable.
+		{ "Palette",      "Colors",            MIRROR_ARRAY }, // TArray<FColor>.
+		{ "Texture",      "Mips",              MIRROR_ARRAY }, // TArray<FMipmap>.
+		{ "FireTexture",  "Sparks",            MIRROR_ARRAY }, // TArray<FSpark>.
+		{ "WaterTexture", "SourceFields",      MIRROR_PTR   }, // BYTE*.
+		{ "WetTexture",   "LocalSourceBitmap", MIRROR_PTR   }, // BYTE*.
+		{ "Canvas",       "FramePtr",          MIRROR_PTR   }, // FSceneNode*.
+		{ "Console",      "vtblOut",           MIRROR_PTR   }, // FOutputDevice vtable.
+		{ "Player",       "vfOut",             MIRROR_PTR   }, // FOutputDevice vtable.
+		{ "Player",       "TravelItems",       MIRROR_ARRAY }, // FString.
+	};
+	for( INT i=0; i<ARRAY_COUNT(Placeholders); i++ )
+	{
+		if(	appStricmp( Owner->GetName(), Placeholders[i].Struct )==0
+		&&	appStricmp( Property->GetName(), Placeholders[i].Prop )==0 )
+		{
+			INT Size = Placeholders[i].Size;
+			if( Size==MIRROR_PTR )
+				Size = sizeof(void*);
+			else if( Size==MIRROR_ARRAY )
+				Size = sizeof(void*) + 2*sizeof(INT); // TArray/FString: Data/ArrayNum/ArrayMax.
+			return Property->ArrayDim * Size;
+		}
+	}
+	return 0;
+}
+
+//
+// Alignment the C++ compiler gives the native mirrors: they are compiled with
+// #pragma pack(4) (CoreClasses.h/EngineClasses.h), so everything is 4-aligned
+// regardless of pointer size.
+//
+INT UStruct::GetPropertiesAlignment()
+{
+	return 4;
+}
 
 //
 // Link offsets.
@@ -342,12 +399,36 @@ void UStruct::LinkOffsets( FArchive& Ar )
 		UProperty* Property = Cast<UProperty>( Field );
 		if( Property && Field->GetParent()==this )
 		{
-			Property->Link( Ar, Prev );
-			PropertiesSize = Property->Offset + Property->GetSize();
+			INT PlaceholderSize = GetPlaceholderSize( this, Property );
+			if( PlaceholderSize )
+			{
+				Property->Offset = Align( PropertiesSize, 4 );
+				PropertiesSize   = Property->Offset + PlaceholderSize;
+			}
+			else
+			{
+				Property->Link( Ar, Prev );
+				PropertiesSize = Property->Offset + Property->GetSize();
+			}
 			Prev = Property;
 		}
 	}
-	PropertiesSize = Align(PropertiesSize,4);
+	PropertiesSize = Align( PropertiesSize, GetPropertiesAlignment() );
+
+	// Intrinsic classes mirror a C++ class whose real size is authoritative.
+	// If the script-computed layout disagrees, report it: every mismatch means
+	// script and C++ will read that class's members at different offsets.
+	if( IntrinsicSize>0 && PropertiesSize!=IntrinsicSize )
+	{
+		debugf( NAME_Warning, "Native class size mismatch: %s script=%i C++=%i", GetName(), PropertiesSize, IntrinsicSize );
+		for( UField* Field=Children; Field; Field=Field->Next )
+		{
+			UProperty* Property = Cast<UProperty>( Field );
+			if( Property && Field->GetParent()==this )
+				debugf( NAME_Warning, "  %s %s: offset=%i size=%i", Property->GetClass()->GetName(), Property->GetName(), Property->Offset, Property->GetSize() );
+		}
+		PropertiesSize = Max( PropertiesSize, IntrinsicSize );
+	}
 	unguard;
 }
 
@@ -713,7 +794,7 @@ void UClass::Export( FOutputDevice& Out, const char* FileType, int Indent )
 			// Constants.
 			INT Consts=0;
 			for( TFieldIterator<UConst> ItC(this); ItC && ItC.GetStruct()==this; ++ItC )
-				Out.Logf( "#define UCONST_%s %s\r\n", ItC->GetName(), ItC->Value ),Consts++;
+				Out.Logf( "#define UCONST_%s %s\r\n", ItC->GetName(), *ItC->Value ),Consts++;
 			if( Consts )
 				Out.Logf( "\r\n" );
 
@@ -1101,6 +1182,26 @@ EExprToken UStruct::SerializeExpr( INT& iCode, FArchive& Ar )
 	EExprToken Expr=(EExprToken)0;
 	guard(SerializeExpr);
 	#define XFER(T) {Ar << *(T*)&Script(iCode); iCode += sizeof(T); }
+	// XFER_OBJ stores all object/property/class/function references as a fixed-size
+	// INT (GObjects index) in the bytecode, keeping the on-disk and in-memory format
+	// at 4 bytes regardless of the native pointer size.  Exec functions translate the
+	// index back to a pointer at runtime via GObj.GetIndexedObject().
+	#define XFER_OBJ(T) \
+	{ \
+		if( Ar.IsLoading() ) \
+		{ \
+			T* Obj = NULL; \
+			Ar << (UObject*&)Obj; \
+			*(INT*)&Script(iCode) = Obj ? (INT)Obj->GetIndex() : INDEX_NONE; \
+		} \
+		else \
+		{ \
+			INT _Idx = *(INT*)&Script(iCode); \
+			T* Obj = _Idx != INDEX_NONE ? (T*)GObj.GetIndexedObject(_Idx) : NULL; \
+			Ar << (UObject*&)Obj; \
+		} \
+		iCode += sizeof(INT); \
+	}
 
 	// Get expr token.
 	XFER(BYTE);
@@ -1127,7 +1228,7 @@ EExprToken UStruct::SerializeExpr( INT& iCode, FArchive& Ar )
 		case EX_InstanceVariable:
 		case EX_DefaultVariable:
 		{
-			XFER(UProperty*);
+			XFER_OBJ(UProperty);
 			break;
 		}
 		case EX_BoolVariable:
@@ -1150,7 +1251,7 @@ EExprToken UStruct::SerializeExpr( INT& iCode, FArchive& Ar )
 		}
 		case EX_IntrinsicParm:
 		{
-			XFER(UProperty*);
+			XFER_OBJ(UProperty);
 			break;
 		}
 		case EX_ClassContext:
@@ -1177,7 +1278,7 @@ EExprToken UStruct::SerializeExpr( INT& iCode, FArchive& Ar )
 		}
 		case EX_FinalFunction:
 		{
-			XFER(UStruct*); // Stack node.
+			XFER_OBJ(UStruct); // Stack node.
 			while( SerializeExpr( iCode, Ar ) != EX_EndFunctionParms ); // Parms.
 			break;
 		}
@@ -1198,7 +1299,7 @@ EExprToken UStruct::SerializeExpr( INT& iCode, FArchive& Ar )
 		}
 		case EX_ObjectConst:
 		{
-			XFER(UObject*);
+			XFER_OBJ(UObject);
 			break;
 		}
 		case EX_NameConst:
@@ -1230,13 +1331,13 @@ EExprToken UStruct::SerializeExpr( INT& iCode, FArchive& Ar )
 		}
 		case EX_MetaCast:
 		{
-			XFER(UClass*);
+			XFER_OBJ(UClass);
 			SerializeExpr( iCode, Ar );
 			break;
 		}
 		case EX_DynamicCast:
 		{
-			XFER(UClass*);
+			XFER_OBJ(UClass);
 			SerializeExpr( iCode, Ar );
 			break;
 		}
@@ -1320,14 +1421,14 @@ EExprToken UStruct::SerializeExpr( INT& iCode, FArchive& Ar )
 		case EX_StructCmpEq:
 		case EX_StructCmpNe:
 		{
-			XFER(UStruct*); // Struct.
+			XFER_OBJ(UStruct); // Struct.
 			SerializeExpr( iCode, Ar ); // Left expr.
 			SerializeExpr( iCode, Ar ); // Right expr.
 			break;
 		}
 		case EX_StructMember:
 		{
-			XFER(UProperty*); // Property.
+			XFER_OBJ(UProperty); // Property.
 			SerializeExpr( iCode, Ar ); // Inner expr.
 			break;
 		}
@@ -1372,6 +1473,19 @@ void UFunction::Serialize( FArchive& Ar )
 	// Replication info.
 	if( FunctionFlags & FUNC_Net )
 		Ar << RepOffset;
+
+	// The serialized parameter frame layout was computed by the compiler for
+	// 32-bit pointers; LinkOffsets has just relaid the properties with native
+	// pointer sizes, so recompute the frame info from the fresh offsets.
+	if( Ar.IsLoading() )
+	{
+		for( TFieldIterator<UProperty> It(this); It && (It->PropertyFlags & CPF_Parm); ++It )
+		{
+			ParmsSize = It->Offset + It->GetSize();
+			if( It->PropertyFlags & CPF_ReturnParm )
+				ReturnValueOffset = It->Offset;
+		}
+	}
 
 	unguard;
 }

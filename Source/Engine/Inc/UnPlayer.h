@@ -1,3 +1,4 @@
+#pragma pack (push,4) /* Match script class mirror layout */
 /*=============================================================================
 	UnPlayer.h: Unreal player class.
 	Copyright 1997 Epic MegaGames, Inc. This software is a trade secret.
@@ -37,3 +38,5 @@ class ENGINE_API UPlayer : public UObject, public FOutputDevice
 /*-----------------------------------------------------------------------------
 	The End.
 -----------------------------------------------------------------------------*/
+
+#pragma pack (pop)

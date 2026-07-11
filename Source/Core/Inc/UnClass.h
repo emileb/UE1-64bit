@@ -128,6 +128,7 @@ class CORE_API UStruct : public UField
 	UTextBuffer*		ScriptText;
 	UField*				Children;
 	INT					PropertiesSize;
+	INT					IntrinsicSize;		// sizeof() of the mirrored C++ class for intrinsic classes, 0 otherwise. Not serialized.
 	FName				FriendlyName;
 	INT					TextPos;
 	INT					Line;
@@ -147,6 +148,7 @@ class CORE_API UStruct : public UField
 	virtual UBOOL MergeBools() {return 1;}
 	virtual UStruct* GetInheritanceSuper() {return GetSuperStruct();}
 	virtual void LinkOffsets( FArchive& Ar );
+	INT GetPropertiesAlignment();
 	virtual void SerializeBin( FArchive& Ar, BYTE* Data );
 	virtual void SerializeTaggedProperties( FArchive& Ar, BYTE* Data, UClass* DefaultsClass );
 	virtual void CleanupDestroyed( BYTE* Data );

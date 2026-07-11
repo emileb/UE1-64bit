@@ -1,3 +1,4 @@
+#pragma pack (push,4) /* Match script class mirror layout */
 /*=============================================================================
 	UnViewport.h: Unreal viewport object.
 	Copyright 1997 Epic MegaGames, Inc. This software is a trade secret.
@@ -346,3 +347,5 @@ class ENGINE_API UClient : public UObject
 /*-----------------------------------------------------------------------------
 	The End.
 -----------------------------------------------------------------------------*/
+
+#pragma pack (pop)

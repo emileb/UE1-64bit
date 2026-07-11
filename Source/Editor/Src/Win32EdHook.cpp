@@ -33,7 +33,7 @@ const char* GValue;
 
 // Misc.
 extern CORE_API FGlobalPlatform GTempPlatform;
-extern CORE_API DWORD hWndCallback, hWndMain;
+extern CORE_API UPTRINT hWndCallback, hWndMain;
 UEngine* Engine;
 
 /*-----------------------------------------------------------------------------
@@ -240,7 +240,7 @@ UBOOL UEditorEngine::HookExec( const char* Cmd, FOutputDevice* Out )
 	{
 		char Parms[256];
 		Exec( "MAP SAVE FILE=../Maps/Autoplay.unr", Out );
-		appSprintf( Parms, "Autoplay.unr HWND=%i %s", (INT)hWndMain, GameCommandLine );
+		appSprintf( Parms, "Autoplay.unr HWND=%p %s", (void*)hWndMain, GameCommandLine );
 		appLaunchURL( "Unreal", Parms );
 		return 1;
 	}
@@ -415,8 +415,8 @@ extern "C"
 	{
 		EDHOOK_TRY;
 
-		hWndCallback = (DWORD)hInWndCallback;
-		hWndMain     = (DWORD)hInWndMain;
+		hWndCallback = (UPTRINT)hInWndCallback;
+		hWndMain     = (UPTRINT)hInWndMain;
 
 		WNDCLASS Cls;
 		memset( &Cls, 0, sizeof(Cls) );

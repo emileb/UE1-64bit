@@ -369,7 +369,7 @@ void UNOpenALAudioSubsystem::RegisterSound( USound* Sound )
 
 	alBufferData( Buf, Format, (const void*)WaveInfo.SampleDataStart, WaveInfo.SampleDataSize, *WaveInfo.pSamplesPerSec );
 
-	Sound->Handle = (void*)Buf;
+	Sound->Handle = (void*)(UPTRINT)Buf;
 	Sound->Looping = ( WaveInfo.SampleLoopsNum != 0 ); // the only indication of looping in this version of UE1
 
 	if( !GIsEditor )
@@ -386,7 +386,7 @@ void UNOpenALAudioSubsystem::UnregisterSound( USound* Sound )
 
 	if( Sound->Handle )
 	{
-		ALuint Buf = (ALuint)Sound->Handle;
+		ALuint Buf = (ALuint)(UPTRINT)Sound->Handle;
 		check( alIsBuffer( Buf ) );
 
 		for( INT i = 0; i < MAX_SOURCES; ++i )
@@ -521,7 +521,7 @@ UBOOL UNOpenALAudioSubsystem::PlaySound( AActor* Actor, INT Id, USound* Sound, F
 	if( !Voice || !Sound || !Sound->Handle )
 		return false;
 
-	ALuint Buf = (ALuint)Sound->Handle;
+	ALuint Buf = (ALuint)(UPTRINT)Sound->Handle;
 	check( alIsBuffer( Buf ) );
 
 	Voice->Id = Id;

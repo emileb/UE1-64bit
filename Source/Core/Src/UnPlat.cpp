@@ -70,7 +70,7 @@ char GLogFname[256]="";
 	Globals.
 -----------------------------------------------------------------------------*/
 
-CORE_API DWORD hWndMain=0, hWndProgressBar=0, hWndProgressText=0, hWndCallback=0;
+CORE_API UPTRINT hWndMain=0, hWndProgressBar=0, hWndProgressText=0, hWndCallback=0;
 static void UnrealAllocationErrorHandler( );
 
 static void Recurse()
@@ -135,8 +135,9 @@ UBOOL FGlobalPlatform::Exec( const char* Cmd, FOutputDevice* Out )
 	{
 		if( ParseCommand(&Str,"SET") )
 		{
-			Parse( Str, "PROGRESSBAR=",  hWndProgressBar );
-			Parse( Str, "PROGRESSTEXT=", hWndProgressText );
+			QWORD TmpBar=0, TmpText=0;
+			if( Parse( Str, "PROGRESSBAR=",  TmpBar  ) ) hWndProgressBar  = (UPTRINT)TmpBar;
+			if( Parse( Str, "PROGRESSTEXT=", TmpText ) ) hWndProgressText = (UPTRINT)TmpText;
 			return 1;
 		}
 		else return 0;
