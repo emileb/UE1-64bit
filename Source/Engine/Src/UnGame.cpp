@@ -93,6 +93,12 @@ void UGameEngine::Init()
 		Client = ConstructClassObject<UClient>( ClientClass );
 		Client->Init( this );
 
+		// Optional command-line resolution override (e.g. "-ResX=1280 -ResY=720"),
+		// so a launcher can pass down the desired framebuffer size instead of
+		// relying on whatever ViewportX/ViewportY got loaded from the config.
+		Parse( appCmdLine(), "ResX=", Client->ViewportX );
+		Parse( appCmdLine(), "ResY=", Client->ViewportY );
+
 		// Init rendering.
 		UClass* RenderClass = GObj.LoadClass( URenderBase::StaticClass, NULL, "ini:Engine.Engine.Render", NULL, LOAD_NoFail | LOAD_KeepImports, NULL );
 		Render = ConstructClassObject<URenderBase>( RenderClass );
