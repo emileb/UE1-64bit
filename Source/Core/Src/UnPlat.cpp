@@ -383,7 +383,15 @@ void appInit()
 	appStrcpy( Ini, appBaseDir() );
 	if( Parse( appCmdLine(), "INI=", Temp, ARRAY_COUNT(Temp) ) )
 	{
-		appStrcat( Ini, Temp );
+		// An absolute -INI= path (e.g. user_files/unreal/Unreal.ini, always on
+		// real storage so it's actually writable, unlike the game's own
+		// System/ folder when that's SAF-backed) must NOT be appended after
+		// appBaseDir() - on Android that's "./", and "./" + "/abs/path"
+		// collapses back to a CWD-relative path, not the absolute one.
+		if( Temp[0]=='/' || Temp[0]=='\\' )
+			appStrcpy( Ini, Temp );
+		else
+			appStrcat( Ini, Temp );
 	}
 	else
 	{
@@ -398,6 +406,9 @@ void appInit()
 		}
 	}
 
+#ifdef __ANDROID__
+	debugf( NAME_Init, "Android: resolved Ini path = '%s'", Ini );
+#endif
 	FILE* F = appFopen( Ini, "at" );
 	if( F )
 		appFclose( F );
@@ -851,12 +862,104 @@ void appLaunchURL( const char* URL, const char* Parms, char* Error256 )
 	FGlobalPlatform file finding.
 -----------------------------------------------------------------------------*/
 
+#ifdef __ANDROID__
+// SAFFAL (the scoped-storage libc interceptor) decides whether a path is in
+// SAF-backed storage purely by string prefix - it does NOT resolve "../" or
+// consult the working directory (see getCanonicalPath()/isInSAF() in
+// SAFFAL/saffal/src/main/jni/Utils.cpp), so a CWD-relative path like
+// "../Maps/Foo.unr" can never match its registered SAF root and silently
+// falls through to a real (failing) fopen. Default.ini's Paths[]/SavePath/
+// CachePath are all "one level up from CWD (.../UE1/System), then into a
+// sibling folder", so on Android we rewrite that same shape into an absolute
+// path rooted at -GamePath= - the UE1 folder itself (System's parent, i.e.
+// exactly what "one level up" resolves to), passed by UE1Launcher.kt only
+// when the game data lives on secondary/SAF storage - primary storage keeps
+// working via the original relative+chdir path, unchanged.
+static const char* AndroidGamePath()
+{
+	static char GamePath[256] = "";
+	static UBOOL Checked = 0;
+	if( !Checked )
+	{
+		Parse( appCmdLine(), "GamePath=", GamePath, ARRAY_COUNT(GamePath) );
+		debugf( NAME_Init, "Android: GamePath override = '%s'", GamePath );
+		Checked = 1;
+	}
+	return GamePath;
+}
+
+// Rewrites Buf in place from "../Foo/..." to "<GamePath>/Foo/...", if Buf
+// starts with ".." and a GamePath override is set. No-op otherwise (covers
+// primary-storage installs, which don't pass -GamePath=).
+static void AndroidAbsolutePath( char* Buf, int BufSize )
+{
+	const char* GamePath = AndroidGamePath();
+	if( !GamePath[0] )
+		return;
+	if( Buf[0]=='.' && Buf[1]=='.' && (Buf[2]=='/' || Buf[2]=='\\') )
+	{
+		char Before[256];
+		appStrncpy( Before, Buf, ARRAY_COUNT(Before) );
+		char Rebuilt[512];
+		snprintf( Rebuilt, sizeof(Rebuilt), "%s/%s", GamePath, Buf + 3 );
+		appStrncpy( Buf, Rebuilt, BufSize );
+		debugf( NAME_Init, "Android: rewrote path '%s' -> '%s'", Before, Buf );
+	}
+}
+
+// User-generated content (saves, screenshots, download cache, ...) always
+// lives under the app's user_files folder, in a "unreal" subfolder - never in
+// the game's own data folder (which may be SAF-backed/read-only, and
+// shouldn't be polluted with user data regardless of storage type). USER_FILES
+// is set by Clibs_OpenTouch/android_jni_inc.cpp before main() runs (the same
+// env var TFE/OpenJK read for this).
+static const char* AndroidUserFilesDir()
+{
+	static char Dir[256] = "";
+	static UBOOL Checked = 0;
+	if( !Checked )
+	{
+		const char* UserFiles = getenv( "USER_FILES" );
+		if( UserFiles && UserFiles[0] )
+			snprintf( Dir, sizeof(Dir), "%s/unreal", UserFiles );
+		debugf( NAME_Init, "Android: user_files dir = '%s'", Dir );
+		Checked = 1;
+	}
+	return Dir;
+}
+
+// One-time fixup so every direct GSys->SavePath/CachePath use elsewhere
+// (UnGame.cpp save-game code, UnChan.cpp download cache) writes to
+// user_files/unreal instead, with no changes needed at those call sites.
+// Unconditional - unlike the game's own (read-only) data, user-written files
+// always redirect here regardless of whether the game data itself is on
+// primary or secondary/SAF storage.
+static void AndroidFixupGSysPathsOnce()
+{
+	static UBOOL Done = 0;
+	if( Done )
+		return;
+	const char* UserFiles = AndroidUserFilesDir();
+	if( UserFiles[0] )
+	{
+		snprintf( GSys->SavePath, ARRAY_COUNT(GSys->SavePath), "%s/Save", UserFiles );
+		snprintf( GSys->CachePath, ARRAY_COUNT(GSys->CachePath), "%s/Cache", UserFiles );
+		debugf( NAME_Init, "Android: SavePath='%s' CachePath='%s'", GSys->SavePath, GSys->CachePath );
+	}
+	Done = 1;
+}
+#endif
+
 //
 // Find a file.
 //
 UBOOL appFindPackageFile( const char* In, const FGuid* Guid, char* Out )
 {
 	guard(appFindPackageFile);
+
+#ifdef __ANDROID__
+	AndroidFixupGSysPathsOnce();
+#endif
 
 	// Don't return it if it's a library.
 	if( strlen(In)>4 && stricmp( In + strlen(In) - (sizeof(DLLEXT)-1), DLLEXT )==0 )
@@ -865,7 +968,12 @@ UBOOL appFindPackageFile( const char* In, const FGuid* Guid, char* Out )
 	// Try file as specified.
 	strcpy( Out, In );
 	if( appFSize( Out ) >= 0 )
+	{
+#ifdef __ANDROID__
+		debugf( NAME_Init, "Android: appFindPackageFile('%s') found as specified: '%s'", In, Out );
+#endif
 		return 1;
+	}
 
 	// Try all of the predefined paths.
 	for( DWORD i=0; i<ARRAY_COUNT(GSys->Paths)+(Guid!=NULL); i++ )
@@ -881,6 +989,19 @@ UBOOL appFindPackageFile( const char* In, const FGuid* Guid, char* Out )
 			Ext = appStrstr(Temp,"*");
 			if( Ext )
 				*Ext++ = 0;
+#ifdef __ANDROID__
+			// Ext points *into* Temp - AndroidAbsolutePath rewrites Temp's
+			// contents in place (to a longer, differently-shaped string), which
+			// would leave Ext dangling into whatever now occupies that offset.
+			// Copy the extension out first so it survives the rewrite.
+			char ExtStorage[16];
+			if( Ext )
+			{
+				appStrncpy( ExtStorage, Ext, ARRAY_COUNT(ExtStorage) );
+				Ext = ExtStorage;
+			}
+			AndroidAbsolutePath( Temp, sizeof(Temp) );
+#endif
 			strcpy( Out, Temp );
 			strcat( Out, In );
 		}
@@ -901,6 +1022,9 @@ UBOOL appFindPackageFile( const char* In, const FGuid* Guid, char* Out )
 			strcat( Out, Ext );
 			Found = (appFSize( Out )>=0);
 		}
+#ifdef __ANDROID__
+		debugf( NAME_Init, "Android: appFindPackageFile('%s') tried '%s' -> %s", In, Out, Found ? "FOUND" : "not found" );
+#endif
 		if( Found )
 		{
 			if( i==ARRAY_COUNT(GSys->Paths) )
@@ -911,6 +1035,9 @@ UBOOL appFindPackageFile( const char* In, const FGuid* Guid, char* Out )
 			return 1;
 		}
 	}
+#ifdef __ANDROID__
+	debugf( NAME_Init, "Android: appFindPackageFile('%s') FAILED, no matching path", In );
+#endif
 
 	// Not found.
 	return 0;

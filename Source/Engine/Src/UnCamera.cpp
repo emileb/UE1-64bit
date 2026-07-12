@@ -10,6 +10,10 @@
 #include "UnRender.h"
 #include "UnNet.h"
 
+#ifdef __ANDROID__
+#include <stdlib.h>
+#endif
+
 /*-----------------------------------------------------------------------------
 	URenderDevice.
 -----------------------------------------------------------------------------*/
@@ -378,9 +382,27 @@ UBOOL UViewport::Exec( const char* Cmd, FOutputDevice* Out )
 	else if( ParseCommand(&Cmd,"SHOT") )
 	{
 		// Screenshot.
-		char File[32];
+		char File[256];
+		#ifdef __ANDROID__
+		// User-generated content always redirects to user_files/unreal, never
+		// into the game's own (possibly SAF/read-only) data folder.
+		char ShotDir[256] = "";
+		{
+			const char* UserFiles = getenv( "USER_FILES" );
+			if( UserFiles && UserFiles[0] )
+			{
+				snprintf( ShotDir, sizeof(ShotDir), "%s/unreal/Screenshots", UserFiles );
+				appMkdir( ShotDir );
+			}
+		}
+		#endif
 		for( INT i=0; i<256; i++ )
 		{
+			#ifdef __ANDROID__
+			if( ShotDir[0] )
+				snprintf( File, sizeof(File), "%s/Shot%04i.bmp", ShotDir, i );
+			else
+			#endif
 			appSprintf( File, "Shot%04i.bmp", i );
 			if( appFSize(File) < 0 )
 				break;

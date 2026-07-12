@@ -218,6 +218,7 @@ void PortableAction(int state, int action)
         case PORT_ACT_UP:          if (state) postCommand("Jump");            return;
         case PORT_ACT_USE:         if (state) postCommand("Grab");            return; // closest thing UE1 has to a generic "use"
         case PORT_ACT_NEXT_WEP:    if (state) postCommand("NextWeapon");      return;
+        case PORT_ACT_PREV_WEP:    if (state) postCommand("PrevWeapon");      return;
         case PORT_ACT_WEAP0:       if (state) postCommand("SwitchWeapon 10"); return;
         case PORT_ACT_WEAP1:       if (state) postCommand("SwitchWeapon 1");  return;
         case PORT_ACT_WEAP2:       if (state) postCommand("SwitchWeapon 2");  return;
@@ -234,6 +235,7 @@ void PortableAction(int state, int action)
         case PORT_ACT_QUICKSAVE:   if (state) postCommand("QuickSave");       return;
         case PORT_ACT_QUICKLOAD:   if (state) postCommand("QuickLoad");       return;
         case PORT_ACT_SHOW_KBRD:   if (state) postCommand("Talk");            return; // chat text entry
+        case PORT_ACT_DATAPAD:     if (state) postCommand("ActivateTranslator"); return; // "Press F2 to activate translator"
 
         // Note: PORT_ACT_PREV_WEP has no default alias (only GreyMinus, a key
         // UE1's KeyMap doesn't translate) and PORT_ACT_INVEN has no equivalent

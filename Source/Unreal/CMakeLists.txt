@@ -60,19 +60,20 @@ if(ANDROID)
   # ENGINE_NAME names the touch-control layout XML files.
   target_compile_definitions(${PROJECT_NAME} PRIVATE ENGINE_NAME="unreal")
 
-  # OpenTouch glue: JNI bridge + touch interface from Clibs_OpenTouch, compiled
-  # into the engine .so. Phase 1 uses the shared alpha/ TouchInterface; the
-  # engine gets its own mobile/touch_interface copy in Phase 2.
+  # OpenTouch glue: JNI bridge from Clibs_OpenTouch, plus UE1's own touch
+  # interface (mobile/touch_interface_unreal.cpp + touch_interface.h) - not
+  # the shared Clibs_OpenTouch/alpha/ copy, which carries other Alpha Touch
+  # engines' PERFECT_DARK/ROTTEXPR-specific layout branches.
   target_include_directories(${PROJECT_NAME} PRIVATE
     ${SDL2_IMAGE_ANDROID_INCLUDE_DIR}
     ${CLIBS_DIR}
-    ${CLIBS_DIR}/alpha
+    ${UE1_SOURCE_DIR}/../mobile
     ${TOUCH_CONTROLS_DIR}
   )
   target_sources(${PROJECT_NAME} PRIVATE
     "${UE1_SOURCE_DIR}/../mobile/game_interface.cpp"
+    "${UE1_SOURCE_DIR}/../mobile/touch_interface_unreal.cpp"
     "${CLIBS_DIR}/sigma/android_jni.cpp"
-    "${CLIBS_DIR}/alpha/touch_interface.cpp"
     "${CLIBS_DIR}/touch_interface_base.cpp"
     "${CLIBS_DIR}/LogWritter.c"
     "${CLIBS_DIR}/fts.c"
