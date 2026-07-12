@@ -236,6 +236,14 @@ void UNOpenGLESRenderDevice::Lock( FPlane FlashScale, FPlane FlashFog, FPlane Sc
 	glClearDepthf( 1.f );
 	glDepthFunc( GL_LEQUAL );
 
+#ifdef __ANDROID__
+    glEnable( GL_DEPTH_TEST );
+    glDepthMask( GL_TRUE );
+    glBlendFunc( GL_ONE, GL_ZERO );
+    glEnable( GL_BLEND );
+    glEnableVertexAttribArray( 0 );
+#endif
+
 	FLOAT TargetBrightness = CurrentBrightness;
 	if( Viewport && Viewport->Client )
 		TargetBrightness = Viewport->Client->Brightness;
@@ -419,6 +427,7 @@ void UNOpenGLESRenderDevice::DrawTile( FSceneNode* Frame, FTextureInfo& Texture,
 		AttribFloat4( &VtxColor.X );
 		PolyVertex();
 	EndPoly();
+
 
 	CurrentShaderFlags &= ~SF_VtxColor;
 

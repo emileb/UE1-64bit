@@ -16,6 +16,14 @@
 #error "Unsupported platform."
 #endif
 
+#ifdef __ANDROID__
+#include <android/log.h>
+#define LOGI(...) ((void)__android_log_print(ANDROID_LOG_INFO,"UE1", __VA_ARGS__))
+// From Clibs_OpenTouch (linked into the final .so); prototype declared here so
+// this Core module needs no extra include paths.
+extern "C" void LogWritter_Write(const char *msg);
+#endif
+
 #ifdef PLATFORM_WIN32
 #include <windows.h>
 #include <commctrl.h>
@@ -1053,6 +1061,16 @@ void FGlobalPlatform::WriteBinary( const void* Data, INT Length, EName Event )
 			OutputDebugString( ": " );
 			OutputDebugString( (char*)Data );
 			OutputDebugString( "\n" );
+#endif
+#ifdef __ANDROID__
+			// Mirror every log line to the Android log and the shareable
+			// LogWritter file (initialised by the JNI bridge).
+			LOGI( "%s: %s", *EventName, (char*)Data );
+			{
+				char AndroidLine[4096];
+				snprintf( AndroidLine, sizeof(AndroidLine), "%s: %s\n", *EventName, (char*)Data );
+				LogWritter_Write( AndroidLine );
+			}
 #endif
 			if( GLogFile )
 			{

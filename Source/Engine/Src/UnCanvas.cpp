@@ -42,6 +42,11 @@ void UCanvas::DrawTile
 	if( XL<=0.f || YL<=0.f || X+XL<=0.f || Y+YL<=ClipY0 || X>=Frame->FX || Y>=ClipY1 )
 		return;
 
+#ifdef __ANDROID__ // Can get NaN which is not picked up above, so check here.
+    if(appIsNan(XL) || appIsNan(YL))
+        return;
+#endif
+
 	// Clip.
 	if( X<0.f )
 		{FLOAT C=X*UL/XL; U-=C; UL+=C; XL+=X; X=0.f;}
