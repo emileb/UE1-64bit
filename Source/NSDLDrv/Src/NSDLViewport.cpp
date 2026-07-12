@@ -6,6 +6,29 @@
 
 IMPLEMENT_CLASS( UNSDLViewport );
 
+#ifdef __ANDROID__
+// The touch UI (mobile/game_interface.cpp) needs to know whether a menu is
+// currently up (to pick the right on-screen control layout) and needs the
+// viewport itself (to drive real gameplay actions independent of whatever the
+// player has bound to which key - see mobile/game_interface.cpp for why).
+// There is only ever one local viewport in these ports, so a single static
+// pointer is enough. Only ever read/written from the engine's own thread
+// (constructed/destroyed here, and consumed from UE1_TickPortableActions(),
+// called from MainLoop() in Unreal/Src/SDLLaunch.cpp) - never touch Input/
+// Actor/Exec directly from the touch/JNI thread.
+static UNSDLViewport* GAndroidViewport = NULL;
+
+extern "C" int UE1_IsMenuActive()
+{
+	return ( GAndroidViewport && GAndroidViewport->Actor && GAndroidViewport->Actor->bShowMenu ) ? 1 : 0;
+}
+
+extern "C" UViewport* UE1_GetViewport()
+{
+	return GAndroidViewport;
+}
+#endif
+
 /*-----------------------------------------------------------------------------
 	UNSDLViewport implementation.
 -----------------------------------------------------------------------------*/
@@ -192,6 +215,10 @@ UNSDLViewport::UNSDLViewport( ULevel* InLevel, UNSDLClient* InClient )
 	Destroyed = false;
 	QuitRequested = false;
 
+#ifdef __ANDROID__
+	GAndroidViewport = this;
+#endif
+
 	unguard;
 }
 
@@ -199,6 +226,10 @@ UNSDLViewport::UNSDLViewport( ULevel* InLevel, UNSDLClient* InClient )
 void UNSDLViewport::Destroy()
 {
 	guard(UNSDLViewport::Destroy);
+#ifdef __ANDROID__
+	if( GAndroidViewport == this )
+		GAndroidViewport = NULL;
+#endif
 	if( Client->FullscreenViewport == this )
 	{
 		Client->FullscreenViewport = NULL;

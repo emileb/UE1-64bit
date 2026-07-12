@@ -15,6 +15,14 @@ extern DLL_IMPORT UBOOL GTickDue;
 extern "C" {HINSTANCE hInstance;}
 extern "C" {char GCC_HIDDEN THIS_PACKAGE[64]="Launch";}
 
+#ifdef __ANDROID__
+// Defined in mobile/game_interface.cpp. Drains the touch UI's pending input
+// (set from PortableAction/PortableMove/PortableLookYaw etc, called on the
+// Android UI/touch thread) and applies it to the engine's real UObject state -
+// must run on this thread (the engine's only thread) and nowhere else.
+extern "C" void UE1_TickPortableActions();
+#endif
+
 // FExecHook.
 class FExecHook : public FExec
 {
@@ -207,6 +215,10 @@ void MainLoop( UEngine* Engine )
 	DOUBLE OldTime = appSeconds();
 	while( GIsRunning && !GIsRequestingExit )
 	{
+#ifdef __ANDROID__
+		UE1_TickPortableActions();
+#endif
+
 		// Update the world.
 		DOUBLE NewTime = appSeconds();
 		Engine->Tick( NewTime - OldTime );
