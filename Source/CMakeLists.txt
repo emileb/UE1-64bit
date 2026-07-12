@@ -36,8 +36,11 @@ if(ANDROID)
   # (not cache) so these shadow any previously cached option() values.
   set(BUILD_STATIC ON)
   set(BUILD_EDITOR OFF)
-  # Phase 1 uses the null sound driver; OpenAL + libxmp come later.
-  set(BUILD_NOPENALDRV OFF)
+  # NOpenALDrv is forced as the AudioDevice regardless of the .ini (see
+  # UEngine::Init, Engine/Src/UnEngine.cpp). It builds against a stub libxmp
+  # (Thirdparty/libxmp-lite-stub) since there's no real Android libxmp build
+  # yet - sound effects work, tracker background music does not.
+  set(BUILD_NOPENALDRV ON)
 endif()
 
 if(BUILD_STATIC)

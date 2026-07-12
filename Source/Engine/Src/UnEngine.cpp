@@ -80,7 +80,14 @@ void UEngine::Init()
 	&&	GIsClient
 	&&	!ParseParam(appCmdLine(),"NOSOUND") )
 	{
+		// Force OpenAL regardless of what's in Default.ini/User.ini - a plain
+		// (non-"ini:"-prefixed) path bypasses the AudioDevice config lookup
+		// and names the class directly (see GObj.LoadClass's "ini:" check).
+#ifdef __ANDROID__
+		UClass* AudioClass = GObj.LoadClass( UAudioSubsystem::StaticClass, NULL, "NOpenALDrv.NOpenALAudioSubsystem", NULL, LOAD_NoFail | LOAD_KeepImports, NULL );
+#else
 		UClass* AudioClass = GObj.LoadClass( UAudioSubsystem::StaticClass, NULL, "ini:Engine.Engine.AudioDevice", NULL, LOAD_NoFail | LOAD_KeepImports, NULL );
+#endif
 		Audio = ConstructClassObject<UAudioSubsystem>( AudioClass );
 		if( !Audio->Init() )
 		{
