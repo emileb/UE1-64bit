@@ -172,7 +172,22 @@ FURL::FURL( FURL* Base, const char* TextURL, ETravelType Type )
 
 	// Handle pure filenames.
 	UBOOL FarHost=0;
-	if( appStrlen(URL)<2 || !appIsAlpha(URL[0]) || URL[1]!=':' )
+#ifdef __ANDROID__
+	// A Windows absolute path ("C:\...") is recognised below and bypasses all
+	// host/protocol parsing, since it can never be a valid URL host. A POSIX
+	// absolute path ("/storage/...", used for SaveGame/LoadGame/HubStack
+	// filenames built from GSys->SavePath once that's rewritten to an
+	// absolute Android path) needs the same bypass: otherwise its single
+	// leading '/' is misread as the start of a malformed "//host" URL a few
+	// lines down, which resets the whole FURL to the class default (Map
+	// silently becomes the config's default map instead of the real save
+	// file - this is exactly what made SaveGame/LoadGame silently load the
+	// wrong map after SavePath became absolute).
+	UBOOL IsPosixAbsolutePath = ( URL[0]=='/' && URL[1]!='/' );
+#else
+	UBOOL IsPosixAbsolutePath = 0;
+#endif
+	if( ( appStrlen(URL)<2 || !appIsAlpha(URL[0]) || URL[1]!=':' ) && !IsPosixAbsolutePath )
 	{
 		// Parse protocol.
 		if
@@ -237,8 +252,13 @@ FURL::FURL( FURL* Base, const char* TextURL, ETravelType Type )
 		{
 			FarMap = 1;
 
-			// Portal.
-			char* t = appStrchr(URL,'/');
+			// Portal. Skipped entirely for a POSIX absolute path: unlike a
+			// Windows path (backslash-separated, so never matches '/' here),
+			// an Android absolute path is itself full of '/' separators, so
+			// this would otherwise chop it into bogus "Map"/"Portal" pieces
+			// (or hit the reset-to-default case below, since a deep path has
+			// far more than one '/' remaining).
+			char* t = IsPosixAbsolutePath ? NULL : appStrchr(URL,'/');
 			if( t )
 			{
 				// Trailing slash.

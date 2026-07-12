@@ -1189,7 +1189,7 @@ void FFileChannel::ReceivedBunch( FInBunch& Bunch )
 		{
 			// Finished transfer.
 			char Dest[256], GuidString[64];
-			appSprintf( Dest, "%s\\%s.uxx", GSys->CachePath, Info.Guid.String(GuidString) );
+			appSprintf( Dest, "%s" PATH_SEPARATOR "%s.uxx", PATH(GSys->CachePath), Info.Guid.String(GuidString) );
 			if( Transfered==0 )
 			{
 				appSprintf( Error, LocalizeError("NetRefused"), Info.Parent->GetName() );

@@ -354,7 +354,7 @@ UBOOL UGameEngine::Browse( FURL URL, char* Error256 )
 		if( GLevel && GLevel->GetLevelInfo()->HubStackLevel>0 )
 		{
 			char Filename[256], SavedPortal[256];
-			appSprintf( Filename, "%s\\Game%i.usa", GSys->SavePath, GLevel->GetLevelInfo()->HubStackLevel-1 );
+			appSprintf( Filename, "%s" PATH_SEPARATOR "Game%i.usa", PATH(GSys->SavePath), GLevel->GetLevelInfo()->HubStackLevel-1 );
 			appStrcpy( SavedPortal, *URL.Portal );
 			URL = FURL( &URL, Filename, TRAVEL_Partial );
 			URL.Portal = SavedPortal;
@@ -374,7 +374,7 @@ UBOOL UGameEngine::Browse( FURL URL, char* Error256 )
 		// Handle restarting.
 		guard(LoadURL);
 		char Temp[256], Error256[256];
-		appSprintf( Temp, "%s\\Save%i.usa?load", GSys->SavePath, appAtoi(Option) );
+		appSprintf( Temp, "%s" PATH_SEPARATOR "Save%i.usa?load", PATH(GSys->SavePath), appAtoi(Option) );
 		if( LoadMap(FURL(&LastURL,Temp,TRAVEL_Partial),NULL,Error256) )
 		{
 			// Copy the hub stack.

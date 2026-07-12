@@ -144,18 +144,32 @@ UBOOL FConfigFile::SetString( const char* Section, const char *Key, const char* 
 {
 	guard(FConfigFile::SetString);
 
+	// Normally config only actually hits disk via FConfigCache::Exit()'s
+	// Write() pass, run once at graceful engine shutdown (player picks
+	// "Quit"). Android apps are routinely killed without that shutdown ever
+	// running (task swipe, OS memory pressure, just closing the app) - any
+	// config set this way (e.g. SlotNames, written by the Save menu) would
+	// work for the rest of the current process but silently vanish on next
+	// launch. Flush immediately instead so a change survives regardless of
+	// how the process ends.
 	FKeyValue* KeyVal = FindKeyValue( Section, Key );
 	if( KeyVal )
 	{
 		if( appStrcmp( KeyVal->Val, Val ) != 0 )
 			Dirty = true;
 		appStrncpy( KeyVal->Val, Val, MAX_INI_VAL );
+#ifdef __ANDROID__
+		Write();
+#endif
 		return true;
 	}
 
 	if( AddKeyValue( Section, Key, Val ) )
 	{
 		Dirty = true;
+#ifdef __ANDROID__
+		Write();
+#endif
 		return true;
 	}
 
