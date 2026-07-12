@@ -101,7 +101,15 @@ void main()
 	Out.rgb = vVtxFog.rgb + Out.rgb * (1.0 - vVtxFog.a);
 #endif
 
-	Out.rgb *= 0.5 + 1.5 * uBrightness;
+	// Desktop (NOpenGLDrv.cpp) feeds this same "0.5 + 1.5*Brightness" value to
+	// SDL_SetWindowBrightness(), which is a true gamma-ramp control (SDL
+	// builds the ramp as pow(x, 1/gamma)) - not a linear scale. A linear
+	// multiply here can never lift a nearly-black pixel into visible range
+	// (this is what kept shadowed/unlit areas pitch black even at max
+	// brightness), whereas the matching gamma curve brightens dark detail
+	// much more than it does highlights, same as the desktop path.
+	highp float Gamma = 0.5 + 1.5 * uBrightness;
+	Out.rgb = pow( max( Out.rgb, 0.0 ), vec3( 1.0 / Gamma ) );
 
 	gl_FragColor = Out;
 }
