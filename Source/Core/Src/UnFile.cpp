@@ -1542,10 +1542,34 @@ static char GLanguage[32]="int";
 CORE_API const char* Localize( const char* Section, const char* Key, const char* Package, const char* LangExt )
 {
 	guard(Localize);
-	char Filename[256];
+	char Filename[512];
 	LangExt = LangExt ? LangExt : GLanguage;
 TryAgain:
+#ifdef __ANDROID__
+	// appBaseDir() is literal "./" on Android, so this CWD-relative lookup
+	// (".int" files live in System/ alongside the .u packages) has the same
+	// SAF problem as Paths[]/SavePath in UnPlat.cpp: SAFFAL matches by
+	// literal path prefix, never resolves a relative path, so it silently
+	// falls through to a failing fopen on SAF-backed storage - hence every
+	// lookup logging "No localization" there. Rewrite to the same absolute
+	// -GamePath=/System root when that override is set (primary storage,
+	// with no override, keeps the original relative lookup).
+	{
+		static char GamePath[256] = "";
+		static UBOOL GamePathChecked = 0;
+		if( !GamePathChecked )
+		{
+			Parse( appCmdLine(), "GamePath=", GamePath, ARRAY_COUNT(GamePath) );
+			GamePathChecked = 1;
+		}
+		if( GamePath[0] )
+			appSprintf( Filename, "%s/System/%s.%s", GamePath, Package, LangExt );
+		else
+			appSprintf( Filename, "%s%s.%s", appBaseDir(), Package, LangExt );
+	}
+#else
 	appSprintf( Filename, "%s%s.%s", appBaseDir(), Package, LangExt );
+#endif
 	static char Results[8][256];
 	static INT iResult=0;
 	iResult = (iResult+1) % ARRAY_COUNT(Results);
