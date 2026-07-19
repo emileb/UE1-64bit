@@ -73,6 +73,7 @@ private:
 	UViewport* Viewport;
 	ALCdevice* Device;
 	ALCcontext* Ctx;
+	UBOOL Paused; // whole-device pause while the app is backgrounded
 	ALuint Sources[MAX_SOURCES];
 	TArray<ALuint> Buffers;
 	INT NextId;
@@ -124,6 +125,9 @@ private:
 		UBOOL Looping;
 		UBOOL BufferChanged = false;
 	} Voices[MAX_SOURCES];
+
+	void PauseDevice();
+	void ResumeDevice();
 
 	void InitReverbEffect();
 	void UpdateReverb( FPointRegion& Region );

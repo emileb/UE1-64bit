@@ -56,6 +56,7 @@ UBOOL UNOpenALAudioSubsystem::Init()
 	guard(UNOpenALAudioSubsystem::Init)
 
 	Viewport = NULL;
+	Paused = false;
 	Device = NULL;
 	if( DeviceName[0] )
 		Device = alcOpenDevice( DeviceName );
@@ -984,9 +985,48 @@ UBOOL UNOpenALAudioSubsystem::Exec( const char* Cmd, FOutputDevice* Out )
 			xmp_set_player( MusicCtx, XMP_PLAYER_INTERP, MusicInterpolation );
 		return true;
 	}
+	else if( ParseCommand( &Cmd, "PauseAudio" ) )
+	{
+		PauseDevice();
+		return true;
+	}
+	else if( ParseCommand( &Cmd, "ResumeAudio" ) )
+	{
+		ResumeDevice();
+		return true;
+	}
 
 	return false;
 
+	unguard;
+}
+
+//
+// Pause/resume all audio output. Driven by the SDL window minimize/restore
+// events (NSDLViewport) so music and sounds stop while the app is backgrounded
+// - openal-soft otherwise keeps its own mixer thread running. Uses the whole-
+// device pause extension so a single call freezes music streaming and every
+// voice, and resumes them exactly where they left off.
+//
+void UNOpenALAudioSubsystem::PauseDevice()
+{
+	guard(UNOpenALAudioSubsystem::PauseDevice)
+	if( Device && !Paused )
+	{
+		alcDevicePauseSOFT( Device );
+		Paused = true;
+	}
+	unguard;
+}
+
+void UNOpenALAudioSubsystem::ResumeDevice()
+{
+	guard(UNOpenALAudioSubsystem::ResumeDevice)
+	if( Device && Paused )
+	{
+		alcDeviceResumeSOFT( Device );
+		Paused = false;
+	}
 	unguard;
 }
 

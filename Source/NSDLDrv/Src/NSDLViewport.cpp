@@ -787,6 +787,21 @@ UBOOL UNSDLViewport::TickInput()
 				// signal to client and remember set a flag just in case
 				QuitRequested = true;
 				return true;
+#ifdef __ANDROID__
+			case SDL_WINDOWEVENT:
+				// Pause/resume all audio when the app is backgrounded/restored -
+				// openal-soft's mixer thread keeps running otherwise, so music
+				// would play on over a minimized app. These events arrive before
+				// SDL blocks the app thread on pause (SDL_androidevents.c).
+				if( Client && Client->Engine && Client->Engine->Audio )
+				{
+					if( Ev.window.event == SDL_WINDOWEVENT_MINIMIZED )
+						Client->Engine->Audio->Exec( "PauseAudio" );
+					else if( Ev.window.event == SDL_WINDOWEVENT_RESTORED )
+						Client->Engine->Audio->Exec( "ResumeAudio" );
+				}
+				break;
+#endif
 			case SDL_TEXTINPUT:
 				for( const char *p = Ev.text.text; *p && p < Ev.text.text + sizeof( Ev.text.text ); ++p )
 				{
