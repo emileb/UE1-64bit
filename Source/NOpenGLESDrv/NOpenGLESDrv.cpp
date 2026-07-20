@@ -97,6 +97,21 @@ UBOOL UNOpenGLESRenderDevice::Init( UViewport* InViewport )
 
 	debugf( NAME_Log, "Got OpenGL %s", glGetString( GL_VERSION ) );
 
+#ifdef __ANDROID__
+	// Render-quality toggles normally only reachable by hand-editing the ini
+	// (no in-menu option for them here) - let EngineOptionsUnreal flip them via
+	// the command line. Runs after config load, so these override the ini; the
+	// four base-class flags plus this driver's own DetailTextures are all
+	// directly accessible from here. HighDetailActors is read right after Init()
+	// in NSDLClient's TryRenderDevice, so it must be set by the time Init returns.
+	UBOOL OptOnOff;
+	if( ParseUBOOL( appCmdLine(), "VolumetricLighting=", OptOnOff ) ) VolumetricLighting = OptOnOff;
+	if( ParseUBOOL( appCmdLine(), "ShinySurfaces=",     OptOnOff ) ) ShinySurfaces      = OptOnOff;
+	if( ParseUBOOL( appCmdLine(), "Coronas=",           OptOnOff ) ) Coronas            = OptOnOff;
+	if( ParseUBOOL( appCmdLine(), "HighDetailActors=",  OptOnOff ) ) HighDetailActors   = OptOnOff;
+	if( ParseUBOOL( appCmdLine(), "DetailTextures=",    OptOnOff ) ) DetailTextures     = OptOnOff;
+#endif
+
 	NoVolumetricBlend = true;
 	SupportsFogMaps = true;
 	SupportsDistanceFog = true;
