@@ -99,6 +99,12 @@ void UGameEngine::Init()
 		Parse( appCmdLine(), "ResX=", Client->ViewportX );
 		Parse( appCmdLine(), "ResY=", Client->ViewportY );
 
+#ifdef __ANDROID__
+		// Mouse look is driven by captured/relative mouse motion; a bad ini with
+		// CaptureMouse=False silently kills it. Force it on regardless of config.
+		Client->CaptureMouse = 1;
+#endif
+
 		// Init rendering.
 		UClass* RenderClass = GObj.LoadClass( URenderBase::StaticClass, NULL, "ini:Engine.Engine.Render", NULL, LOAD_NoFail | LOAD_KeepImports, NULL );
 		Render = ConstructClassObject<URenderBase>( RenderClass );
