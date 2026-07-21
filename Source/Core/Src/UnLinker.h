@@ -631,6 +631,19 @@ class ULinkerLoad : public ULinker, public FArchiveFileLoad
 			// Already verified.
 			return;
 		}
+#ifdef __ANDROID__
+		// The Editor package isn't built on Android. Some stock maps carry
+		// editor-only artifacts (TransBuffer/MyLevel) that import Editor.*
+		// classes; those exports are RF_LoadForEdit and skipped in-game, so an
+		// unresolved Editor import is harmless - swallow it (below) instead of
+		// aborting the whole map load, which is otherwise game-breaking.
+		UBOOL AndroidEditorImport = 0;
+		if( !GIsEditor )
+			for( INT j=-i-1; j!=0; j=ImportMap(-j-1).PackageIndex )
+				if( ImportMap(-j-1).PackageIndex==0 && appStricmp(*ImportMap(-j-1).ObjectName,"Editor")==0 )
+					AndroidEditorImport = 1;
+		try {
+#endif
 		if
 		(	Import.ClassPackage  != NAME_None
 		&&	Import.ClassName     != NAME_None
@@ -766,6 +779,19 @@ class ULinkerLoad : public ULinker, public FArchiveFileLoad
 				}
 			}
 		}
+#ifdef __ANDROID__
+		}
+		catch( char* Error )
+		{
+			// Editor-package imports are unresolvable without the (unbuilt)
+			// Editor module and are only referenced by skipped RF_LoadForEdit
+			// exports - warn and leave unresolved rather than fail the load.
+			if( AndroidEditorImport )
+				debugf( NAME_Warning, "Skipping unresolved Editor import: %s", Error );
+			else
+				throw( Error );
+		}
+#endif
 		unguard;
 	}
 
