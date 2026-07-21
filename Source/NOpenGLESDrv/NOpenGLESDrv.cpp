@@ -81,6 +81,9 @@ UNOpenGLESRenderDevice::UNOpenGLESRenderDevice()
 	UseVAO = false;
 	UseBGRA = true;
 	AutoFOV = true;
+#ifdef __ANDROID__
+	FOVOverride = 0.f;
+#endif
 	CurrentBrightness = -1.f;
 	SwapInterval = 1;
 }
@@ -110,6 +113,10 @@ UBOOL UNOpenGLESRenderDevice::Init( UViewport* InViewport )
 	if( ParseUBOOL( appCmdLine(), "Coronas=",           OptOnOff ) ) Coronas            = OptOnOff;
 	if( ParseUBOOL( appCmdLine(), "HighDetailActors=",  OptOnOff ) ) HighDetailActors   = OptOnOff;
 	if( ParseUBOOL( appCmdLine(), "DetailTextures=",    OptOnOff ) ) DetailTextures     = OptOnOff;
+
+	// FOV slider (90..120). UE1 has no ini FOV; applied at runtime in Lock().
+	if( Parse( appCmdLine(), "FOV=", FOVOverride ) )
+		FOVOverride = Clamp( FOVOverride, 90.f, 120.f );
 #endif
 
 	NoVolumetricBlend = true;
@@ -291,6 +298,15 @@ void UNOpenGLESRenderDevice::Lock( FPlane FlashScale, FPlane FlashFog, FPlane Sc
 		ColorMod = FPlane( FlashFog.X, FlashFog.Y, FlashFog.Z, 1.f - Min( FlashScale.X * 2.f, 1.f ) );
 	else
 		ColorMod = FPlane( 0.f, 0.f, 0.f, 0.f );
+
+#ifdef __ANDROID__
+	// -FOV= (EngineOptionsUnreal slider) sets the unzoomed FOV. UE1 has no ini FOV,
+	// so drive DesiredFOV directly, via AutoFOV's "unzoomed default" (==90) sentinel
+	// so sniper zoom is preserved. Only for values above 90 - 90 falls through to
+	// the AutoFOV path below (its aspect-corrected default), leaving that untouched.
+	if( FOVOverride > 90.0f && Viewport && Viewport->Actor && Viewport->Actor->DesiredFOV == 90.0f )
+		Viewport->Actor->DesiredFOV = FOVOverride;
+#endif
 
 	if( AutoFOV && Viewport && Viewport->Actor && Viewport->Actor->DesiredFOV == 90.0f )
 	{

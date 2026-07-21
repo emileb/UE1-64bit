@@ -65,6 +65,11 @@ class DLL_EXPORT UNOpenGLESRenderDevice : public URenderDevice
 	UBOOL DetailTextures;
 	UBOOL UseVAO;
 	UBOOL AutoFOV;
+#ifdef __ANDROID__
+	// -FOV= command-line override (EngineOptionsUnreal slider), 90..120. UE1 has no
+	// ini/config FOV, so the FOV is set at runtime here. 0 = not supplied.
+	FLOAT FOVOverride;
+#endif
 	INT SwapInterval;
 
 	// All currently cached textures.
