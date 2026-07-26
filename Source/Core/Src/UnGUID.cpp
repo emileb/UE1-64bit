@@ -24,6 +24,7 @@
 */
 
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 #include <sys/types.h>
 #include <sys/time.h>
@@ -34,10 +35,13 @@
 	Private definitions.
 ----------------------------------------------------------------------------*/
 
-typedef unsigned long   unsigned32;
-typedef unsigned short  unsigned16;
-typedef unsigned char   unsigned8;
-typedef unsigned char   byte;
+// This code assumed unsigned long is 32 bit; on LP64 (arm64) it is 64 bit,
+// which made unreal_uuid_t 24 bytes and let appGetGUID() overrun the 16-byte
+// FGuid it is handed (corrupting the stack on every package/game save).
+typedef uint32_t        unsigned32;
+typedef uint16_t        unsigned16;
+typedef uint8_t         unsigned8;
+typedef uint8_t         byte;
 
 #define CLOCK_SEQ_LAST	0x3FFF
 #define RAND_MASK		CLOCK_SEQ_LAST
@@ -55,6 +59,9 @@ typedef struct _unsigned64_t {
   unsigned32          lo;
   unsigned32          hi;
 } unsigned64_t;
+
+static_assert( sizeof(unreal_uuid_t) == 16, "unreal_uuid_t must match FGuid size" );
+static_assert( sizeof(unsigned64_t) == 8, "UUID arithmetic words must remain 32 bit" );
 
 // Forward declarations.
 void uuid_create(unreal_uuid_t *uuid);
