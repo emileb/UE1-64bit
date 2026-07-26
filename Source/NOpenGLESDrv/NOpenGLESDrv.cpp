@@ -134,6 +134,7 @@ UBOOL UNOpenGLESRenderDevice::Init( UViewport* InViewport )
 	verify( VtxData );
 	VtxDataEnd = VtxData + VtxDataSize;
 	VtxDataPtr = VtxData;
+	VtxPolyStart = VtxData;
 
 	IdxDataSize = MAX_VERTS;
 	IdxData = (GLushort*)appMalloc( IdxDataSize * sizeof(GLushort), "GLIdxDataBuf" );
@@ -146,7 +147,8 @@ UBOOL UNOpenGLESRenderDevice::Init( UViewport* InViewport )
 	{
 		glGenBuffers( 1, &GLBuf );
 		glBindBuffer( GL_ARRAY_BUFFER, GLBuf );
-		glBufferData( GL_ARRAY_BUFFER, VtxDataSize, (void*)VtxData, GL_DYNAMIC_DRAW );
+		// VtxDataSize counts floats, glBufferData wants bytes.
+		glBufferData( GL_ARRAY_BUFFER, VtxDataSize * sizeof(FLOAT), (void*)VtxData, GL_DYNAMIC_DRAW );
 	}
 
 	if( UseBGRA )

@@ -117,6 +117,7 @@ class DLL_EXPORT UNOpenGLESRenderDevice : public URenderDevice
 	GLfloat* VtxData;
 	GLfloat* VtxDataEnd;
 	GLfloat* VtxDataPtr;
+	GLfloat* VtxPolyStart;
 	DWORD VtxDataSize;
 	DWORD VtxPolyVerts;
 	UBOOL InPoly;
@@ -205,6 +206,7 @@ private:
 	inline void BeginPoly()
 	{
 		VtxPolyVerts = 0;
+		VtxPolyStart = VtxDataPtr;
 		IdxBase = IdxCount;
 	}
 
@@ -257,6 +259,14 @@ private:
 
 	inline void EndPoly()
 	{
+		// A poly with <3 verts would still emit a triangle indexing vertices that
+		// were never written - rewind instead of drawing stale buffer contents.
+		if( VtxPolyVerts < 3 )
+		{
+			VtxDataPtr = VtxPolyStart;
+			VtxPolyVerts = 0;
+			return;
+		}
 		*IdxDataPtr++ = IdxCount++;
 		*IdxDataPtr++ = IdxCount++;
 		*IdxDataPtr++ = IdxCount++;
