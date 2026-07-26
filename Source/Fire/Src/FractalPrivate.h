@@ -507,7 +507,7 @@ class DLL_EXPORT UIceTexture : public UFractalTexture
 	BYTE        Frequency;
 	BYTE        Amplitude;
 
-	DWORD       MoveIce:1;   // Mirrored as BOOLEAN in C++
+	DWORD       MoveIce:1 GCC_ALIGN(4);   // Mirrored as BOOLEAN in C++. GCC_ALIGN(4) keeps the bitfield out of the preceding BYTE cluster so its DWORD storage starts at an aligned offset, matching the script BoolProperty (Clang/Itanium would otherwise pack it into the preceding byte, shifting every following member 4 bytes early vs the MSVC-compiled script layout).
 	FLOAT       MasterCount;
 	FLOAT       UDisplace;
 	FLOAT 		VDisplace;

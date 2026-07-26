@@ -349,6 +349,7 @@ static INT GetPlaceholderSize( UStruct* Owner, UProperty* Property )
 		{ "FireTexture",  "Sparks",            MIRROR_ARRAY }, // TArray<FSpark>.
 		{ "WaterTexture", "SourceFields",      MIRROR_PTR   }, // BYTE*.
 		{ "WetTexture",   "LocalSourceBitmap", MIRROR_PTR   }, // BYTE*.
+		{ "IceTexture",   "LocalSource",       MIRROR_PTR   }, // BYTE* LocalSourceBitmap.
 		{ "Canvas",       "FramePtr",          MIRROR_PTR   }, // FSceneNode*.
 		{ "Console",      "vtblOut",           MIRROR_PTR   }, // FOutputDevice vtable.
 		{ "Player",       "vfOut",             MIRROR_PTR   }, // FOutputDevice vtable.
