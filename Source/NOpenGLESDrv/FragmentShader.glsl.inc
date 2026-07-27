@@ -72,11 +72,7 @@ void main()
 
 #ifdef SF_Texture2
 	highp vec4 Texel2 = texture2D(uTexture2, vTexCoord2);
-#ifdef SF_Fogmap
-	Texel2 *= 2.0;
-	Out.rgb = Texel2.rgb + Out.rgb * (1.0 - Texel2.a);
-	Out.a = Texel2.a;
-#else
+#ifndef SF_Fogmap
 	Out *= Texel2;
 #endif
 #endif
@@ -91,6 +87,15 @@ void main()
 #else
 	Out.rgb *= Texel3.rgb;
 #endif
+#endif
+
+	// Fog maps are a plain additive stage applied after the detail stage, with no
+	// 2x scale and the previous alpha kept - matching the fixed-function reference
+	// in NOpenGLDrv.cpp (GL_COMBINE_RGB=GL_ADD, GL_COMBINE_ALPHA=GL_REPLACE from
+	// GL_PREVIOUS). Attenuating Out.rgb by the fog alpha instead erases the wall
+	// texture as fog density rises.
+#ifdef SF_Fogmap
+	Out.rgb += Texel2.rgb;
 #endif
 
 #ifdef SF_VtxColor
