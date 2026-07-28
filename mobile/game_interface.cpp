@@ -160,6 +160,9 @@ static volatile bool s_wantStrafeLeft = false, s_wantStrafeRight = false;
 static volatile bool s_wantFire = false, s_wantAltFire = false, s_wantDuck = false;
 static volatile bool s_wantWalk = false, s_wantStrafeMod = false;
 
+// Pending dodge (an EDodgeDir), consumed by UE1_ApplyPendingDodge().
+static volatile int s_wantDodge = DODGE_None;
+
 // One-shot commands (Jump, Grab, weapon switches, ...). Single-producer
 // (touch thread) / single-consumer (engine thread) ring buffer, same pattern
 // OpenJK's postCommand/CL_AndroidMove use.
@@ -235,6 +238,15 @@ void PortableAction(int state, int action)
             // axis path, no separate turn-key generation needed.
             case PORT_ACT_LEFT:        s_turnAxis = state ? -1.0f : 0.0f;  return; // turn left
             case PORT_ACT_RIGHT:       s_turnAxis = state ? 1.0f : 0.0f;   return; // turn right
+
+            // --- Dodge. EDodgeDir's left/right names are inverted with respect
+            // to the world: DODGE_Left moves along +Y, which is the direction
+            // the StrafeRight alias (aStrafe > 0) accelerates - so the two are
+            // crossed here on purpose.
+            case PORT_ACT_DODGE_LEFT:  if (state) s_wantDodge = DODGE_Right;   return;
+            case PORT_ACT_DODGE_RIGHT: if (state) s_wantDodge = DODGE_Left;    return;
+            case PORT_ACT_DODGE_FWD:   if (state) s_wantDodge = DODGE_Forward; return;
+            case PORT_ACT_DODGE_BACK:  if (state) s_wantDodge = DODGE_Back;    return;
 
             // --- Held real buttons/aliases ---
             case PORT_ACT_STRAFE:      s_wantStrafeMod = state != 0;   return; // hold: Left/Right turn -> strafe
@@ -430,6 +442,56 @@ static void applyAliasHold(UViewport *vp, const char *aliasName, bool want, bool
     vp->Exec(aliasName, GSystem);
     vp->Input->SetInputAction(IST_None, 0.0f);
     held = want;
+}
+
+// -DodgeCooldown=true/false, EngineOptionsUnreal. Absent (or false) means no
+// cooldown - see UE1_ApplyPendingDodge().
+static UBOOL dodgeCooldownEnabled()
+{
+    static UBOOL parsed = 0, enabled = 0;
+    if (!parsed)
+    {
+        parsed = 1;
+        ParseUBOOL(appCmdLine(), "DodgeCooldown=", enabled);
+    }
+    return enabled;
+}
+
+// Dodge is decided in script (PlayerPawn.PlayerMove): it fires when a direction
+// is pressed *again* while DodgeDir still remembers the first tap. A button
+// can't double-tap, so this fakes the second half - DodgeDir plus the matching
+// edge/held flag pair - and PlayerMove dodges on this very tick, through the
+// engine's own path (so the move still replicates in netplay). Called from
+// UnLevTic.cpp, after PlayerInput has rebuilt the flags from the real axes.
+extern "C" void UE1_ApplyPendingDodge(APlayerPawn *pawn)
+{
+    INT dir = s_wantDodge;
+    if (dir == DODGE_None)
+        return;
+    s_wantDodge = DODGE_None;
+
+    if (!pawn || pawn->DodgeClickTime <= 0.0f) // dodging turned off in the ini
+        return;
+
+    // Leaving DodgeDir alone while a dodge is in flight (DODGE_Active) or in its
+    // 0.35s post-landing cooldown (DODGE_Done) is what reproduces the original
+    // rate limit: PlayerMove ignores both states, and keeping Active also lets
+    // Landed() apply its Velocity *= 0.1. Overwriting it instead (the default
+    // here, -DodgeCooldown=false) skips both, so dodges chain at full speed -
+    // not vanilla behaviour, but much more usable from a touch button.
+    if (dodgeCooldownEnabled() && pawn->DodgeDir >= DODGE_Active)
+        return;
+
+    pawn->DodgeDir = (BYTE)dir;
+    pawn->DodgeClickTimer = pawn->DodgeClickTime;
+
+    // Clear the three pairs we don't want: PlayerMove tests all four in order
+    // and the last match wins, so a direction genuinely held right now could
+    // otherwise take priority over the requested one.
+    pawn->bEdgeForward = pawn->bWasForward = (dir == DODGE_Forward);
+    pawn->bEdgeBack    = pawn->bWasBack    = (dir == DODGE_Back);
+    pawn->bEdgeLeft    = pawn->bWasLeft    = (dir == DODGE_Left);
+    pawn->bEdgeRight   = pawn->bWasRight   = (dir == DODGE_Right);
 }
 
 extern "C" void UE1_TickPortableActions()

@@ -91,6 +91,12 @@ void TouchInterface::createControls(std::string filesPath)
     tcGameMain->addControl(new touchcontrols::Button("prev_weapon", touchcontrols::RectF(0, 5, 3, 7), "prev_weap", PORT_ACT_PREV_WEP, false, false, "Prev weapon"));
     tcGameMain->addControl(new touchcontrols::Button("console", touchcontrols::RectF(6, 0, 8, 2), "tild", PORT_ACT_CONSOLE, false, true, "Console"));
 
+    // Dodge, otherwise only reachable by double-tapping a movement direction.
+    tcGameMain->addControl(new touchcontrols::Button("dodge_left", touchcontrols::RectF(2, 7, 4, 9), "direction_left", PORT_ACT_DODGE_LEFT, false, false, "Dodge left"));
+    tcGameMain->addControl(new touchcontrols::Button("dodge_right", touchcontrols::RectF(6, 7, 8, 9), "direction_right", PORT_ACT_DODGE_RIGHT, false, false, "Dodge right"));
+    tcGameMain->addControl(new touchcontrols::Button("dodge_fwd", touchcontrols::RectF(4, 5, 6, 7), "direction_up", PORT_ACT_DODGE_FWD, false, true, "Dodge forward"));
+    tcGameMain->addControl(new touchcontrols::Button("dodge_back", touchcontrols::RectF(4, 7, 6, 9), "direction_down", PORT_ACT_DODGE_BACK, false, true, "Dodge back"));
+
     touchcontrols::ButtonGrid *dpad = new touchcontrols::ButtonGrid("dpad_move", touchcontrols::RectF(6, 3, 12, 7), "", 3, 2, true, "Movement btns (WASD)");
 
     dpad->addCell(0, 1, "direction_left", PORT_ACT_MOVE_LEFT);

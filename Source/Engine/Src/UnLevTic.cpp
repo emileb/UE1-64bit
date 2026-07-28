@@ -9,6 +9,11 @@
 #include "EnginePrivate.h"
 #include "UnNet.h"
 
+#ifdef __ANDROID__
+// Touch dodge button, mobile/game_interface.cpp.
+extern "C" void UE1_ApplyPendingDodge( APlayerPawn* PlayerPawn );
+#endif
+
 /*-----------------------------------------------------------------------------
 	Helper classes.
 -----------------------------------------------------------------------------*/
@@ -257,6 +262,11 @@ UBOOL AActor::Tick( FLOAT DeltaSeconds, ELevelTick TickType )
 			// Process PlayerTick with input.
 			PlayerPawn->Player->ReadInput( DeltaSeconds );
 			PlayerPawn->eventPlayerInput( DeltaSeconds );
+#ifdef __ANDROID__
+			// Between the two on purpose: PlayerInput rebuilds the double-tap
+			// flags from the real axes, PlayerTick is what reads them.
+			UE1_ApplyPendingDodge( PlayerPawn );
+#endif
 			PlayerPawn->eventPlayerTick( DeltaSeconds );
 			PlayerPawn->Player->ReadInput( 0.0 );
 		}
