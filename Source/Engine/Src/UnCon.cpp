@@ -6,6 +6,13 @@
 #include "EnginePrivate.h"
 #include "UnRender.h"
 
+#ifdef __ANDROID__
+// Max fraction of the screen height the drop-down console may cover.
+#define ANDROID_MAX_CONSOLE_POS 0.4f
+// Extra background below the console text, in the 480-tall logical canvas.
+#define ANDROID_CONSOLE_BOTTOM_PAD 16.0f
+#endif
+
 /*------------------------------------------------------------------------------
 	UConsole object implementation.
 ------------------------------------------------------------------------------*/
@@ -105,7 +112,14 @@ void UConsole::PreRender( FSceneNode* Frame )
 	if( ConsolePos > 0.0 )
 	{
 		// Show console.
+#ifdef __ANDROID__
+		// Script drops the console to 60% of the screen, which puts the typed line
+		// behind the soft keyboard; cap it so the bottom line stays visible.
+		FLOAT Pos = Min(ConsolePos, (FLOAT)ANDROID_MAX_CONSOLE_POS);
+		ConsoleLines = Min(Pos * (FLOAT)Frame->Y, (FLOAT)Frame->Y);
+#else
 		ConsoleLines = Min(ConsolePos * (FLOAT)Frame->Y, (FLOAT)Frame->Y);
+#endif
 		Frame->Y -= ConsoleLines;
 	}
 	if( BorderSize>=2 )
@@ -166,7 +180,16 @@ void UConsole::PostRender( FSceneNode* Frame )
 	INT YStart	   = BorderLines;
 	INT YEnd	   = Frame->Y - BorderLines;
 	if( ConsoleLines > 0 )
-		Viewport->Canvas->DrawPattern( ConBackground, 0.0, 0.0, Frame->X, ConsoleLines, 1.0, 0.0, ConsoleLines, NULL, 1.0, FPlane(0.7,0.7,0.7,0), FPlane(0,0,0,0), 0 );
+	{
+#ifdef __ANDROID__
+		// Pad the background below the typed line so it isn't left over the game image.
+		FLOAT BackgroundLines = ConsoleLines + ANDROID_CONSOLE_BOTTOM_PAD;
+#else
+		FLOAT BackgroundLines = ConsoleLines;
+#endif
+		// OrgY anchors the texture's bottom edge (the bevel), so it follows the padding.
+		Viewport->Canvas->DrawPattern( ConBackground, 0.0, 0.0, Frame->X, BackgroundLines, 1.0, 0.0, BackgroundLines, NULL, 1.0, FPlane(0.7,0.7,0.7,0), FPlane(0,0,0,0), 0 );
+	}
 
 	// Draw border.
 	if( BorderLines>0 || BorderPixels>0 )
