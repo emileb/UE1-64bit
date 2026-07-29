@@ -267,8 +267,24 @@ void FCollisionHash::RemoveActor( AActor* Actor )
 	check(Actor->bCollideActors);
 	if( Actor->bDeleteMe )
 		return;
+#ifdef __ANDROID__
+	// Don't kill the game over a stale hash location - unhash from where the actor
+	// really was (ColLocation), then restore. Same fix the ut99dc port carries.
+	UBOOL bAdjustedLocation = 0;
+	FVector SavedLocation = Actor->Location;
+	if( Actor->Location!=Actor->ColLocation )
+	{
+		debugf( NAME_Warning, "%s moved without proper hashing, correcting (%f,%f,%f -> %f,%f,%f)",
+			Actor->GetFullName(),
+			Actor->ColLocation.X, Actor->ColLocation.Y, Actor->ColLocation.Z,
+			Actor->Location.X, Actor->Location.Y, Actor->Location.Z );
+		Actor->Location = Actor->ColLocation;
+		bAdjustedLocation = 1;
+	}
+#else
 	if( Actor->Location!=Actor->ColLocation )
 		appErrorf( "%s moved without proper hashing", Actor->GetFullName() );
+#endif
 
 	// Remove actor.
 	INT X0,Y0,Z0,X1,Y1,Z1;
@@ -301,6 +317,14 @@ void FCollisionHash::RemoveActor( AActor* Actor )
 		}
 	}
 	CheckActorNotReferenced( Actor );
+#ifdef __ANDROID__
+	if( bAdjustedLocation )
+	{
+		// Put the real location back, and resync ColLocation so the hash stays consistent.
+		Actor->Location    = SavedLocation;
+		Actor->ColLocation = SavedLocation;
+	}
+#endif
 	unguard;
 }
 
