@@ -281,27 +281,50 @@ inline void FFrame::Step( UObject* Context, BYTE*& Result )
 	(Context->*GIntrinsics[B])( *this, Result );
 	unguardSlow;
 }
+// Bytecode operands sit at arbitrary byte offsets, so these reads are unaligned.
+// 32-bit ARM faults on unaligned VFP/ldrd accesses, hence the memcpy (same fix
+// already applied to execVectorConst/execPollSleep).
 inline INT FFrame::ReadInt()
 {
+#ifdef PLATFORM_ARM
+	INT Result;
+	__builtin_memcpy( &Result, Code, sizeof(Result) );
+#else
 	INT Result = *(INT*)Code;
+#endif
 	Code += sizeof(INT);
 	return Result;
 }
 inline FLOAT FFrame::ReadFloat()
 {
+#ifdef PLATFORM_ARM
+	FLOAT Result;
+	__builtin_memcpy( &Result, Code, sizeof(Result) );
+#else
 	FLOAT Result = *(FLOAT*)Code;
+#endif
 	Code += sizeof(FLOAT);
 	return Result;
 }
 inline INT FFrame::ReadWord()
 {
+#ifdef PLATFORM_ARM
+	_WORD Result;
+	__builtin_memcpy( &Result, Code, sizeof(Result) );
+#else
 	INT Result = *(_WORD*)Code;
+#endif
 	Code += sizeof(_WORD);
 	return Result;
 }
 inline FName FFrame::ReadName()
 {
+#ifdef PLATFORM_ARM
+	FName Result;
+	__builtin_memcpy( &Result, Code, sizeof(Result) );
+#else
 	FName Result = *(FName*)Code;
+#endif
 	Code += sizeof(FName);
 	return Result;
 }

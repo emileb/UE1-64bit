@@ -1174,6 +1174,25 @@ CORE_API FArchive& operator<<( FArchive& Ar, FLabelEntry &Label )
 	UStruct implementation.
 -----------------------------------------------------------------------------*/
 
+#ifdef PLATFORM_ARM
+// Bytecode operands live at arbitrary offsets - stage through an aligned buffer.
+template<typename T>
+static inline void XferAligned( FArchive& Ar, T* Ptr )
+{
+	BYTE Temp[sizeof(T)] GCC_ALIGN(4);
+	if( Ar.IsLoading() )
+	{
+		Ar << *(T*)Temp;
+		__builtin_memcpy( Ptr, Temp, sizeof(T) );
+	}
+	else
+	{
+		__builtin_memcpy( Temp, Ptr, sizeof(T) );
+		Ar << *(T*)Temp;
+	}
+}
+#endif
+
 //
 // Serialize an expression to an archive.
 // Returns expression token.
@@ -1182,7 +1201,15 @@ EExprToken UStruct::SerializeExpr( INT& iCode, FArchive& Ar )
 {
 	EExprToken Expr=(EExprToken)0;
 	guard(SerializeExpr);
+	#ifdef PLATFORM_ARM
+	#define XFER(T) {XferAligned(Ar, (T*)&Script(iCode)); iCode += sizeof(T); }
+	#define XFER_SCRIPT_INT_READ(Var)  __builtin_memcpy( &Var, &Script(iCode), sizeof(INT) );
+	#define XFER_SCRIPT_INT_WRITE(Var) __builtin_memcpy( &Script(iCode), &Var, sizeof(INT) );
+	#else
 	#define XFER(T) {Ar << *(T*)&Script(iCode); iCode += sizeof(T); }
+	#define XFER_SCRIPT_INT_READ(Var)  Var = *(INT*)&Script(iCode);
+	#define XFER_SCRIPT_INT_WRITE(Var) *(INT*)&Script(iCode) = Var;
+	#endif
 	// XFER_OBJ stores all object/property/class/function references as a fixed-size
 	// INT (GObjects index) in the bytecode, keeping the on-disk and in-memory format
 	// at 4 bytes regardless of the native pointer size.  Exec functions translate the
@@ -1193,11 +1220,13 @@ EExprToken UStruct::SerializeExpr( INT& iCode, FArchive& Ar )
 		{ \
 			T* Obj = NULL; \
 			Ar << (UObject*&)Obj; \
-			*(INT*)&Script(iCode) = Obj ? (INT)Obj->GetIndex() : INDEX_NONE; \
+			INT _Idx = Obj ? (INT)Obj->GetIndex() : INDEX_NONE; \
+			XFER_SCRIPT_INT_WRITE(_Idx); \
 		} \
 		else \
 		{ \
-			INT _Idx = *(INT*)&Script(iCode); \
+			INT _Idx; \
+			XFER_SCRIPT_INT_READ(_Idx); \
 			T* Obj = _Idx != INDEX_NONE ? (T*)GObj.GetIndexedObject(_Idx) : NULL; \
 			Ar << (UObject*&)Obj; \
 		} \
@@ -1373,10 +1402,21 @@ EExprToken UStruct::SerializeExpr( INT& iCode, FArchive& Ar )
 		}
 		case EX_Case:
 		{
+#ifdef PLATFORM_ARM
+			// avoid unaligned access - read after the XFER, which is what fills
+			// Script(iCode) when loading.
+			INT iWord = iCode;
+			XFER(_WORD); // Code offset.
+			_WORD W;
+			__builtin_memcpy( &W, &Script(iWord), sizeof(W) );
+			if( W != MAXWORD )
+				SerializeExpr( iCode, Ar ); // Boolean expr.
+#else
 			_WORD *W=(_WORD*)&Script(iCode);
 			XFER(_WORD);; // Code offset.
 			if( *W != MAXWORD )
 				SerializeExpr( iCode, Ar ); // Boolean expr.
+#endif
 			break;
 		}
 		case EX_LabelTable:

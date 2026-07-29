@@ -296,7 +296,14 @@ void UObject::execBoolVariable( FFrame& Stack, BYTE*& Result )
 	// GObjects index (see XFER_OBJ in UStruct::SerializeExpr), not a pointer.
 	GBoolAddr = NULL;
 	BYTE B = *Stack.Code++;
-	UBoolProperty* Property = (UBoolProperty*)GObj.GetIndexedObject( *(INT*)Stack.Code );
+#ifdef PLATFORM_ARM
+	// try to avoid potential unaligned accesses
+	INT PropIndex;
+	__builtin_memcpy( &PropIndex, Stack.Code, sizeof(PropIndex) );
+#else
+	INT PropIndex = *(INT*)Stack.Code;
+#endif
+	UBoolProperty* Property = (UBoolProperty*)GObj.GetIndexedObject( PropIndex );
 	(this->*GIntrinsics[B])( Stack, *(BYTE**)&GBoolAddr );
 	GProperty = Property;
 
