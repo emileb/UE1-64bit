@@ -2940,6 +2940,11 @@ void CacheDrivers( UBOOL ForceRefresh )
 			{
 				char Filename[256];
 				appSprintf( Filename, "%s%s", appBaseDir(), PATH(GSys->Paths[i]) );
+#ifdef __ANDROID__
+				// Rewrite before taking Tmp - the rewrite changes Filename's
+				// length, so a pointer into it taken earlier would dangle.
+				appAndroidAbsolutePath( Filename, ARRAY_COUNT(Filename) );
+#endif
 				char* Tmp = appStrstr( Filename, "*." );
 				if( Tmp )
 				{

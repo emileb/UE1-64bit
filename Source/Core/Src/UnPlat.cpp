@@ -889,19 +889,25 @@ static const char* AndroidGamePath()
 }
 
 // Rewrites Buf in place from "../Foo/..." to "<GamePath>/Foo/...", if Buf
-// starts with ".." and a GamePath override is set. No-op otherwise (covers
-// primary-storage installs, which don't pass -GamePath=).
-static void AndroidAbsolutePath( char* Buf, int BufSize )
+// starts with ".." and a GamePath override is set. Any leading "./" segments
+// (appBaseDir() is a literal "./" here) are skipped first. No-op otherwise
+// (covers primary-storage installs, which don't pass -GamePath=).
+// Exported because directory *enumeration* needs the same rewrite as package
+// lookup - see execGetMapName (Engine) and CacheDrivers (UnObj.cpp).
+CORE_API void appAndroidAbsolutePath( char* Buf, INT BufSize )
 {
 	const char* GamePath = AndroidGamePath();
 	if( !GamePath[0] )
 		return;
-	if( Buf[0]=='.' && Buf[1]=='.' && (Buf[2]=='/' || Buf[2]=='\\') )
+	const char* Rel = Buf;
+	while( Rel[0]=='.' && (Rel[1]=='/' || Rel[1]=='\\') )
+		Rel += 2;
+	if( Rel[0]=='.' && Rel[1]=='.' && (Rel[2]=='/' || Rel[2]=='\\') )
 	{
 		char Before[256];
 		appStrncpy( Before, Buf, ARRAY_COUNT(Before) );
 		char Rebuilt[512];
-		snprintf( Rebuilt, sizeof(Rebuilt), "%s/%s", GamePath, Buf + 3 );
+		snprintf( Rebuilt, sizeof(Rebuilt), "%s/%s", GamePath, Rel + 3 );
 		appStrncpy( Buf, Rebuilt, BufSize );
 		debugf( NAME_Init, "Android: rewrote path '%s' -> '%s'", Before, Buf );
 	}
@@ -1000,7 +1006,7 @@ UBOOL appFindPackageFile( const char* In, const FGuid* Guid, char* Out )
 				appStrncpy( ExtStorage, Ext, ARRAY_COUNT(ExtStorage) );
 				Ext = ExtStorage;
 			}
-			AndroidAbsolutePath( Temp, sizeof(Temp) );
+			appAndroidAbsolutePath( Temp, sizeof(Temp) );
 #endif
 			strcpy( Out, Temp );
 			strcat( Out, In );

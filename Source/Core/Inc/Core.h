@@ -233,6 +233,12 @@ class FStringOut : public FString, public FOutputDevice
 
 CORE_API TArray<FString> appFindFiles( const char* Spec );
 
+#ifdef __ANDROID__
+// Rewrites a CWD-relative "../Foo/*.ext" spec to an absolute -GamePath= one;
+// SAF-backed storage can only be reached through absolute paths.
+CORE_API void appAndroidAbsolutePath( char* Buf, INT BufSize );
+#endif
+
 /*-----------------------------------------------------------------------------
 	The End.
 -----------------------------------------------------------------------------*/

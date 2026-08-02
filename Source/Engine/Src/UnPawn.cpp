@@ -224,6 +224,11 @@ void AActor::execGetMapName( FFrame& Stack, BYTE*& Result )
 			*appStrstr( Tmp, Wildcard )=0;
 			appStrcat( Tmp, Prefix );
 			appStrcat( Tmp, Wildcard );
+#ifdef __ANDROID__
+			// Without this the map list is empty on SAF storage, so the menus
+			// start a game with no map and FURL falls back to DefaultMap.
+			appAndroidAbsolutePath( Tmp, ARRAY_COUNT(Tmp) );
+#endif
 			TArray<FString>	TheseNames = appFindFiles(Tmp);
 			for( INT i=0; i<TheseNames.Num(); i++ )
 			{
