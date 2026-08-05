@@ -1019,7 +1019,24 @@ INT UGameEngine::GetMaxTickRate()
 {
 	guard(UEngine::GetMaxTickRate);
 	if( GLevel && GLevel->NetDriver && !GLevel->NetDriver->ServerConnection )
+	{
+#ifdef __ANDROID__
+		// MainLoop() sleeps out the rest of the frame at this rate, so while
+		// hosting (botmatch = listen server) it caps frame rate, not just
+		// replication - ini default 35 is far too low for local play.
+		// Parsed once; called every frame.
+		static INT AndroidMaxTickRate = -1;
+		if( AndroidMaxTickRate < 0 )
+		{
+			AndroidMaxTickRate = 0;
+			Parse( appCmdLine(), "MaxTickRate=", AndroidMaxTickRate );
+			debugf( "Android: MaxTickRate override = %i", AndroidMaxTickRate );
+		}
+		if( AndroidMaxTickRate > 0 )
+			return AndroidMaxTickRate;
+#endif
 		return GLevel->NetDriver->MaxTicksPerSecond;
+	}
 	else
 		return 0;
 	unguard;
